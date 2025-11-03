@@ -12,7 +12,7 @@ type InvoicePageProps = {
   };
 };
 
-export default function InvoicePage({ params }: InvoicePageProps) {
+export default async function InvoicePage({ params }: InvoicePageProps) {
   const { token } = params;
   const invoice = verifyAndDecodeToken(token);
 
