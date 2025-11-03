@@ -1,5 +1,4 @@
 export const APP_NAME = "InvoiceLink";
-export const MOCK_BTC_PRICE_USD = 68000;
 export const QUOTE_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 export const JWT_SECRET = process.env.JWT_SECRET || "default-secret-key-that-is-not-very-secret";
 export const MEMPOOL_API_URL = "https://mempool.space/api";

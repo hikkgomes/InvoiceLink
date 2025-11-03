@@ -1,5 +1,5 @@
 import { createHmac } from 'crypto';
-import { JWT_SECRET, MOCK_BTC_PRICE_USD } from './constants';
+import { JWT_SECRET } from './constants';
 
 export interface InvoicePayload {
   amount: number;
@@ -53,31 +53,29 @@ export function verifyAndDecodeToken(token: string): InvoicePayload | null {
   }
 }
 
-// Mock function for fetching BTC price.
+/**
+ * Fetches the current price of Bitcoin in the specified currency.
+ * @param currency The currency to get the price in (e.g., 'USD', 'EUR').
+ * @returns The price of 1 Bitcoin in the specified currency.
+ */
 export async function getBtcPrice(currency: string): Promise<number> {
-  // In a real app, you would fetch this from an API like CoinMarketCap
-  // and handle different currencies.
-  console.log(`Fetching BTC price for ${currency}`);
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-  
-  // This is a simplified mock. In a real application, you'd use a price feed
-  // to get real-time exchange rates for all supported currencies.
-  const rates: { [key: string]: number } = {
-    USD: MOCK_BTC_PRICE_USD,
-    EUR: MOCK_BTC_PRICE_USD * 0.93,
-    GBP: MOCK_BTC_PRICE_USD * 0.79,
-    JPY: MOCK_BTC_PRICE_USD * 157,
-    CAD: MOCK_BTC_PRICE_USD * 1.37,
-    AUD: MOCK_BTC_PRICE_USD * 1.50,
-    CHF: MOCK_BTC_PRICE_USD * 0.90,
-  };
-
-  const rate = rates[currency.toUpperCase()];
-
-  if (rate) {
-    return MOCK_BTC_PRICE_USD / (rate / MOCK_BTC_PRICE_USD);
+  const currencyCode = currency.toLowerCase();
+  try {
+    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=${currencyCode}`);
+    if (!response.ok) {
+      throw new Error(`CoinGecko API responded with status ${response.status}`);
+    }
+    const data = await response.json();
+    
+    if (data.bitcoin && data.bitcoin[currencyCode]) {
+      return data.bitcoin[currencyCode];
+    } else {
+      throw new Error(`Currency '${currency}' not supported by the price API.`);
+    }
+  } catch (error) {
+    console.error("Failed to fetch BTC price:", error);
+    // As a fallback, you could return a stale or default price,
+    // but for now, we'll re-throw to make the issue visible.
+    throw new Error('Could not fetch Bitcoin price. Please try again later.');
   }
-
-  // Fallback for any other currency
-  return MOCK_BTC_PRICE_USD;
 }
