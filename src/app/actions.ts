@@ -17,7 +17,7 @@ const invoiceSchema = z.object({
   currency: z.string().min(1),
   address: z.string().min(26),
   description: z.string().max(100).optional(),
-  expiresIn: z.coerce.number().int().positive().optional(), // default 7
+  expiresIn: z.coerce.number().int().positive().optional(),
 });
 
 export async function createInvoice(prevState: any, formData: FormData) {
@@ -26,7 +26,7 @@ export async function createInvoice(prevState: any, formData: FormData) {
     currency: formData.get('currency'),
     address: formData.get('address'),
     description: formData.get('description'),
-    expiresIn: formData.get('expiresIn'),
+    expiresIn: formData.get('expiresIn') || undefined, // Treat empty string as undefined
   });
 
   if (!parsed.success) {
