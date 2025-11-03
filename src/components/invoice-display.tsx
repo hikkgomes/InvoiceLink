@@ -16,6 +16,7 @@ import { Badge } from './ui/badge';
 type InvoiceStatus = 'pending' | 'detected' | 'confirmed' | 'quote_expired' | 'invoice_expired' | 'error' | 'refreshing';
 
 function formatTime(ms: number) {
+  if (ms < 0) return "00:00";
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
   const seconds = (totalSeconds % 60).toString().padStart(2, '0');
@@ -37,7 +38,7 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
   
   const getInitialStatus = (): InvoiceStatus => {
     if (isInvoiceExpired) return 'invoice_expired';
-    if (isQuoteInitiallyExpired) return 'quote_expired';
+    if (isQuoteInitiallyExpired) return 'pending'; // Treat as pending, let timer trigger refresh
     return 'pending';
   };
 
@@ -57,20 +58,28 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
   useEffect(() => {
     if (paymentStatus !== 'pending') return;
     const paymentCheckInterval = setInterval(async () => {
-      const res = await checkPaymentStatusFiatMatch({
-        address: invoice.address,
-        fiatAmount: invoice.amountFiat,
-        currency: invoice.currency,
-        createdAt: invoice.iat,
-        invoiceExpiresAt: invoice.invoiceExpiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
-      });
-      if (res.status === 'detected' || res.status === 'confirmed') {
-        setPaymentStatus(res.status);
-        setTxId((res as any).txid || null);
-        clearInterval(paymentCheckInterval);
-      } else if (res.status === 'error') {
-        setPaymentStatus('error');
-        clearInterval(paymentCheckInterval);
+      try {
+        const res = await checkPaymentStatusFiatMatch({
+          address: invoice.address,
+          fiatAmount: invoice.amountFiat,
+          currency: invoice.currency,
+          createdAt: invoice.iat,
+          invoiceExpiresAt: invoice.invoiceExpiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
+        });
+        if (res.status === 'detected' || res.status === 'confirmed') {
+          setPaymentStatus(res.status);
+          setTxId((res as any).txid || null);
+          clearInterval(paymentCheckInterval);
+        } else if (res.status === 'error') {
+          // This case handles a definitive error from the server action, not just a failed fetch
+          console.error("Payment status check returned an error state.");
+          setPaymentStatus('error');
+          clearInterval(paymentCheckInterval);
+        }
+      } catch (e) {
+        // This catches network errors or other issues with the fetch itself.
+        // We log it, but don't change status, allowing polling to continue.
+        console.error("Failed to poll for payment status:", e);
       }
     }, 5000);
     return () => clearInterval(paymentCheckInterval);
@@ -89,7 +98,7 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
             const url = new URL(window.location.href);
             url.hash = "#" + result.token;
             window.history.replaceState({}, "", url.toString());
-            router.refresh(); // This re-runs the page component with the new token
+            router.refresh();
           } else if (result?.error) {
             toast({ variant: 'destructive', title: 'Refresh Failed', description: result.error });
             setPaymentStatus('error');
