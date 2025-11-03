@@ -138,6 +138,7 @@ export async function checkPaymentStatusFiatMatch(params: {
     return { status: "pending" as const };
   } catch (e) {
     console.error("checkPaymentStatusFiatMatch failed:", e);
-    return { status: "error" as const };
+    // On transient errors (network, etc), return pending to allow polling to continue
+    return { status: "pending" as const };
   }
 }

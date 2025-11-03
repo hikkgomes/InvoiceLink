@@ -66,13 +66,15 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
           createdAt: invoice.iat,
           invoiceExpiresAt: invoice.invoiceExpiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
+        // Only update status if payment is detected/confirmed.
+        // On transient errors, the server action returns 'pending' anyway.
         if (res.status === 'detected' || res.status === 'confirmed') {
           setPaymentStatus(res.status);
           setTxId((res as any).txid || null);
           clearInterval(paymentCheckInterval);
         } else if (res.status === 'error') {
-          // This case handles a definitive error from the server action, not just a failed fetch
-          console.error("Payment status check returned an error state.");
+          // This case handles a definitive, non-recoverable error from the server action.
+          console.error("Payment status check returned a definitive error state.");
           setPaymentStatus('error');
           clearInterval(paymentCheckInterval);
         }
