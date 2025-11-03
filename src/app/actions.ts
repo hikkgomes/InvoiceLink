@@ -102,10 +102,10 @@ export async function refreshQuote(token: string) {
         };
         
         const newToken = createSignedToken(newPayload);
-        // On a successful refresh, we redirect the user to the new invoice page.
-        // The `redirect` function throws a NEXT_REDIRECT error, which is handled by Next.js.
-        // No value is returned to the client in this case.
-        redirect(`/invoice/${newToken}`);
+        
+        // Instead of calling redirect(), we return the URL to the client
+        // so it can perform the redirect. This works better with client-side transitions.
+        return { redirect: `/invoice/${newToken}` };
 
     } catch (error) {
         console.error('Failed to create new token during refresh:', error);
