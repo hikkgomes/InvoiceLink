@@ -77,9 +77,9 @@ export async function refreshQuoteForToken(token: string) {
   try {
     const price = await getBtcPrice(old.currency);
     const amountSats = computeSatsForFiat(old.amountFiat, old.currency, price);
-    const fresh = { ...old, amountSats, iat: now, exp: now + QUOTE_EXPIRY_MS };
-    const newToken = await signInvoice(fresh);
-    return { token: newToken };
+    const freshPayload = { ...old, amountSats, iat: now, exp: now + QUOTE_EXPIRY_MS };
+    const newToken = await signInvoice(freshPayload);
+    return { token: newToken, payload: freshPayload };
   } catch(e) {
     const message = e instanceof Error ? e.message : 'An unknown error occurred.';
     return { error: `Failed to refresh quote: ${message}` };

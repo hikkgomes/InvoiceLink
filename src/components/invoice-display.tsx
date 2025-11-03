@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import QRCode from "qrcode";
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -30,15 +29,23 @@ function formatExpiryDate(timestamp: number) {
     });
 }
 
-export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { invoice: InvoicePayload, token: string, isQuoteInitiallyExpired: boolean }) {
+interface InvoiceDisplayProps {
+    initialInvoice: InvoicePayload;
+    initialToken: string;
+    onInvoiceUpdate: (newToken: string, newPayload: InvoicePayload) => void;
+}
+
+export function InvoiceDisplay({ initialInvoice, initialToken, onInvoiceUpdate }: InvoiceDisplayProps) {
+  const [invoice, setInvoice] = useState(initialInvoice);
+  const [token, setToken] = useState(initialToken);
   const [timeLeft, setTimeLeft] = useState(invoice.exp - Date.now());
-  const router = useRouter();
   
   const isInvoiceExpired = invoice.invoiceExpiresAt ? Date.now() > invoice.invoiceExpiresAt : false;
   
   const getInitialStatus = (): InvoiceStatus => {
     if (isInvoiceExpired) return 'invoice_expired';
-    if (isQuoteInitiallyExpired) return 'pending'; // Treat as pending, let timer trigger refresh
+    const isQuoteExpired = Date.now() > invoice.exp;
+    if (isQuoteExpired) return 'quote_expired';
     return 'pending';
   };
 
@@ -50,9 +57,21 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
   const bip21Link = `bitcoin:${invoice.address}?amount=${satsToBtcString(invoice.amountSats)}&label=${encodeURIComponent(invoice.description)}`;
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
+  // Update QR code when invoice changes
   useEffect(() => {
     QRCode.toDataURL(bip21Link, { margin: 1, width: 256 }).then(setQrDataUrl).catch(() => setQrDataUrl(null));
   }, [bip21Link]);
+  
+  // Reset component state when initial props change
+  useEffect(() => {
+    setInvoice(initialInvoice);
+    setToken(initialToken);
+    setTimeLeft(initialInvoice.exp - Date.now());
+    const isNewInvoiceExpired = initialInvoice.invoiceExpiresAt ? Date.now() > initialInvoice.invoiceExpiresAt : false;
+    const isNewQuoteExpired = Date.now() > initialInvoice.exp;
+    setPaymentStatus(isNewInvoiceExpired ? 'invoice_expired' : isNewQuoteExpired ? 'quote_expired' : 'pending');
+  }, [initialInvoice, initialToken]);
+
 
   // 1) Poll Blockchair fiat-match FIRST (so paid invoices never refresh)
   useEffect(() => {
@@ -66,52 +85,54 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
           createdAt: invoice.iat,
           invoiceExpiresAt: invoice.invoiceExpiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
-        // Only update status if payment is detected/confirmed.
-        // On transient errors, the server action returns 'pending' anyway.
         if (res.status === 'detected' || res.status === 'confirmed') {
           setPaymentStatus(res.status);
           setTxId((res as any).txid || null);
           clearInterval(paymentCheckInterval);
-        } else if (res.status === 'error') {
-          // This case handles a definitive, non-recoverable error from the server action.
-          console.error("Payment status check returned a definitive error state.");
-          setPaymentStatus('error');
-          clearInterval(paymentCheckInterval);
         }
       } catch (e) {
-        // This catches network errors or other issues with the fetch itself.
-        // We log it, but don't change status, allowing polling to continue.
         console.error("Failed to poll for payment status:", e);
       }
     }, 5000);
     return () => clearInterval(paymentCheckInterval);
   }, [paymentStatus, invoice]);
 
-  // 2) Auto-refresh ONLY if still pending when quote expires
+  // 2) Quote expiry timer and auto-refresh logic
   useEffect(() => {
-    if (paymentStatus !== 'pending') return;
+    // Only run the timer if the status is pending.
+    if (paymentStatus !== 'pending') {
+      // If status changes to something else, like 'refreshing', the timer should stop.
+      return;
+    }
+    
     const timer = setInterval(() => {
       const remaining = invoice.exp - Date.now();
       if (remaining <= 0) {
+        setTimeLeft(0);
+        setPaymentStatus('quote_expired');
         clearInterval(timer);
-        setPaymentStatus('refreshing');
-        refreshQuoteForToken(token).then(result => {
-          if (result?.token) {
-            const url = new URL(window.location.href);
-            url.hash = "#" + result.token;
-            window.history.replaceState({}, "", url.toString());
-            router.refresh();
-          } else if (result?.error) {
-            toast({ variant: 'destructive', title: 'Refresh Failed', description: result.error });
-            setPaymentStatus('error');
-          }
-        });
       } else {
         setTimeLeft(remaining);
       }
     }, 1000);
+    
     return () => clearInterval(timer);
-  }, [paymentStatus, invoice.exp, token, router, toast]);
+  }, [paymentStatus, invoice.exp]);
+
+  // 3) Trigger auto-refresh when quote expires
+  useEffect(() => {
+      if (paymentStatus === 'quote_expired') {
+          setPaymentStatus('refreshing');
+          refreshQuoteForToken(token).then(result => {
+              if (result?.token && result.payload) {
+                  onInvoiceUpdate(result.token, result.payload);
+              } else if (result?.error) {
+                  toast({ variant: 'destructive', title: 'Refresh Failed', description: result.error });
+                  setPaymentStatus('error');
+              }
+          });
+      }
+  }, [paymentStatus, token, onInvoiceUpdate, toast]);
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);

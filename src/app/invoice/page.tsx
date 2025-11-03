@@ -5,28 +5,52 @@ import Link from "next/link";
 import { APP_NAME } from "@/lib/constants";
 import { InvoiceDisplay } from "@/components/invoice-display";
 import { parseInvoiceToken } from "@/app/actions";
+import { InvoicePayload } from "@/lib/invoice";
 
 export default function InvoicePage() {
-  const [payload, setPayload] = useState<any>(null);
+  const [payload, setPayload] = useState<InvoicePayload | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = window.location.hash.slice(1);
-    if (!t) {
-      setErr("No invoice token found.");
-      return;
-    }
-    setToken(t);
-    parseInvoiceToken(t)
-      .then((res) => {
-        if (res?.error) setErr(res.error);
-        else setPayload(res.payload);
-      })
-      .catch(() => setErr("Failed to verify token."));
+    const handleHashChange = () => {
+      const t = window.location.hash.slice(1);
+      if (!t) {
+        setPayload(null);
+        setToken(null);
+        setErr("No invoice token found.");
+        return;
+      }
+      setErr(null);
+      setToken(t);
+      parseInvoiceToken(t)
+        .then((res) => {
+          if (res?.error) {
+            setErr(res.error);
+            setPayload(null);
+          } else {
+            setPayload(res.payload);
+          }
+        })
+        .catch(() => setErr("Failed to verify token."));
+    };
+    
+    // Initial load
+    handleHashChange();
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const isQuoteExpired = payload ? Date.now() > payload.exp : false;
+  const handleInvoiceUpdate = (newToken: string, newPayload: InvoicePayload) => {
+    // This function will be passed down to InvoiceDisplay to allow it to update the parent state
+    const url = new URL(window.location.href);
+    url.hash = '#' + newToken;
+    window.history.replaceState({}, '', url.toString());
+
+    setToken(newToken);
+    setPayload(newPayload);
+  };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
@@ -36,13 +60,13 @@ export default function InvoicePage() {
 
       {err ? (
         <p className="text-sm text-red-500">{err}</p>
-      ) : !payload ? (
+      ) : !payload || !token ? (
         <p className="text-sm text-muted-foreground">Verifying invoice…</p>
       ) : (
         <InvoiceDisplay
-          invoice={payload}
-          token={token!}
-          isQuoteInitiallyExpired={isQuoteExpired}
+          initialInvoice={payload}
+          initialToken={token}
+          onInvoiceUpdate={handleInvoiceUpdate}
         />
       )}
     </main>
