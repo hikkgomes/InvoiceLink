@@ -1,3 +1,4 @@
+
 import { createHmac } from 'crypto';
 import { JWT_SECRET } from './constants';
 
@@ -48,7 +49,6 @@ export function verifyAndDecodeToken(token: string, ignoreExpiration: boolean = 
     const payload = JSON.parse(base64UrlDecode(encodedPayload)) as InvoicePayload;
 
     if (!ignoreExpiration && Date.now() > payload.exp) {
-        console.error('Token has expired');
         // We still return the payload for expired quotes so the UI can handle it
         return payload;
     }
