@@ -20,6 +20,12 @@ const invoiceSchema = z.object({
   expiresIn: z.coerce.number().int().positive().optional(),
 });
 
+export async function parseInvoiceToken(token: string) {
+  const payload = await verifyInvoice(token);
+  if (!payload) return { error: "Invalid or tampered token" };
+  return { payload };
+}
+
 export async function createInvoice(prevState: any, formData: FormData) {
   const parsed = invoiceSchema.safeParse({
     amount: formData.get('amount'),
