@@ -8,7 +8,7 @@ export const btcFromSats = (s: number) => s / 1e8;
 // ---- Invoice payload (amounts in sats) ----
 export interface InvoicePayload {
   amountFiat: number;         // original fiat amount
-  currency: string;           // e.g. USD/EUR/BRL
+  currency: string;           // e.g. USD/EUR/CAD
   description: string;        // optional
   address: string;            // destination BTC address
   amountSats: number;         // expected sats
