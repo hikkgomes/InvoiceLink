@@ -65,43 +65,49 @@ export async function createInvoice(prevState: any, formData: FormData) {
 }
 
 export async function refreshQuote(token: string) {
-  const oldPayload = verifyAndDecodeToken(token, true); // Ignore expiry for refresh
-  if (!oldPayload) {
-    throw new Error('Invalid token for refresh.');
-  }
+    const oldPayload = verifyAndDecodeToken(token, true);
+    if (!oldPayload) {
+        throw new Error('Invalid token for refresh.');
+    }
 
-  const { amount, currency, description, address, invoiceExpiresAt } = oldPayload;
-  
-  // Don't refresh if the whole invoice is expired
-  if (invoiceExpiresAt && Date.now() > invoiceExpiresAt) {
-      throw new Error('This invoice has fully expired and cannot be refreshed.');
-  }
+    const { amount, currency, description, address, invoiceExpiresAt } = oldPayload;
 
-  try {
-    const btcPrice = await getBtcPrice(currency);
-    const amountWithCushion = amount * 1.0099;
-    const btcAmount = parseFloat((amountWithCushion / btcPrice).toFixed(8));
-    const now = Date.now();
+    if (invoiceExpiresAt && Date.now() > invoiceExpiresAt) {
+        throw new Error('This invoice has fully expired and cannot be refreshed.');
+    }
 
-    const newPayload = {
-      amount,
-      currency,
-      description,
-      address,
-      btcAmount,
-      iat: now,
-      exp: now + QUOTE_EXPIRY_MS,
-      invoiceExpiresAt,
-    };
-    
-    const newToken = createSignedToken(newPayload);
-    revalidatePath(`/invoice/${token}`);
-    redirect(`/invoice/${newToken}`);
+    let btcPrice;
+    try {
+        btcPrice = await getBtcPrice(currency);
+    } catch (error) {
+        console.error('Failed to fetch BTC price during refresh:', error);
+        throw new Error('Could not fetch latest Bitcoin price. Please try again in a moment.');
+    }
 
-  } catch (error) {
-    console.error('Failed to refresh quote:', error);
-    throw new Error('Failed to refresh quote. Please try again.');
-  }
+    try {
+        const amountWithCushion = amount * 1.0099;
+        const btcAmount = parseFloat((amountWithCushion / btcPrice).toFixed(8));
+        const now = Date.now();
+
+        const newPayload = {
+            amount,
+            currency,
+            description,
+            address,
+            btcAmount,
+            iat: now,
+            exp: now + QUOTE_EXPIRY_MS,
+            invoiceExpiresAt,
+        };
+        
+        const newToken = createSignedToken(newPayload);
+        revalidatePath(`/invoice/${token}`);
+        redirect(`/invoice/${newToken}`);
+
+    } catch (error) {
+        console.error('Failed to create new token during refresh:', error);
+        throw new Error('Failed to refresh quote. An unexpected error occurred.');
+    }
 }
 
 interface Utxo {
