@@ -11,7 +11,10 @@ const invoiceSchema = z.object({
   currency: z.string().min(1, { message: 'Currency is required.' }),
   address: z.string().min(26, { message: 'Please enter a valid Bitcoin address.'}),
   description: z.string().max(100, { message: 'Description is too long.' }).optional(),
-  expiresIn: z.coerce.number().int().positive().optional(),
+  expiresIn: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.coerce.number().int().positive().optional()
+  ),
 });
 
 export async function createInvoice(prevState: any, formData: FormData) {
@@ -62,12 +65,17 @@ export async function createInvoice(prevState: any, formData: FormData) {
 }
 
 export async function refreshQuote(token: string) {
-  const oldPayload = verifyAndDecodeToken(token);
+  const oldPayload = verifyAndDecodeToken(token, true); // Ignore expiry for refresh
   if (!oldPayload) {
     throw new Error('Invalid token for refresh.');
   }
 
   const { amount, currency, description, address, invoiceExpiresAt } = oldPayload;
+  
+  // Don't refresh if the whole invoice is expired
+  if (invoiceExpiresAt && Date.now() > invoiceExpiresAt) {
+      throw new Error('This invoice has fully expired and cannot be refreshed.');
+  }
 
   try {
     const btcPrice = await getBtcPrice(currency);
