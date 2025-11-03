@@ -1,7 +1,7 @@
 export const APP_NAME = "InvoiceLink";
 
 // 10 minutes (quote)
-export const QUOTE_EXPIRY_MS = 2 * 1000;
+export const QUOTE_EXPIRY_MS = 600 * 1000;
 
 // Use a default secret for dev; require a strong one in server-side production.
 const isServer = typeof window === "undefined";
