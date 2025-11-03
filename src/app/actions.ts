@@ -32,7 +32,8 @@ export async function createInvoice(prevState: any, formData: FormData) {
 
   try {
     const btcPrice = await getBtcPrice(currency);
-    const btcAmount = parseFloat((amount / btcPrice).toFixed(8));
+    const amountWithCushion = amount * 1.0099;
+    const btcAmount = parseFloat((amountWithCushion / btcPrice).toFixed(8));
     const now = Date.now();
 
     const payload = {
@@ -65,7 +66,8 @@ export async function refreshQuote(token: string) {
 
   try {
     const btcPrice = await getBtcPrice(currency);
-    const btcAmount = parseFloat((amount / btcPrice).toFixed(8));
+    const amountWithCushion = amount * 1.0099;
+    const btcAmount = parseFloat((amountWithCushion / btcPrice).toFixed(8));
     const now = Date.now();
 
     const newPayload = {
