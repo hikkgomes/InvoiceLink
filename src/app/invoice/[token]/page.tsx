@@ -37,12 +37,15 @@ export default async function InvoicePage({ params }: InvoicePageProps) {
     );
   }
 
+  // The quote is expired if the current time is past the expiry time.
+  const isQuoteExpired = Date.now() > invoice.exp;
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
        <div className="absolute top-8 left-8 text-2xl font-bold text-foreground">
         <Link href="/">{APP_NAME}</Link>
       </div>
-      <InvoiceDisplay invoice={invoice} token={token} />
+      <InvoiceDisplay invoice={invoice} token={token} isQuoteInitiallyExpired={isQuoteExpired} />
     </main>
   );
 }

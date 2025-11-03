@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -29,41 +28,46 @@ function formatExpiryDate(timestamp: number) {
 }
 
 
-export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, token: string }) {
+export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { invoice: InvoicePayload, token: string, isQuoteInitiallyExpired: boolean }) {
   const [timeLeft, setTimeLeft] = useState(invoice.exp - Date.now());
   const [isPending, startTransition] = useTransition();
-  const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>('pending');
+  
+  const isInvoiceExpired = invoice.invoiceExpiresAt ? Date.now() > invoice.invoiceExpiresAt : false;
+  const isQuoteExpired = timeLeft <= 0;
+
+  const getInitialStatus = (): InvoiceStatus => {
+    if (isInvoiceExpired) return 'invoice_expired';
+    if (isQuoteInitiallyExpired) return 'quote_expired';
+    return 'pending';
+  };
+
+  const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>(getInitialStatus);
   const [txId, setTxId] = useState<string | null>(null);
 
-  const router = useRouter();
   const { toast } = useToast();
-
-  const isQuoteExpired = timeLeft <= 0;
-  const isInvoiceExpired = invoice.invoiceExpiresAt ? Date.now() > invoice.invoiceExpiresAt : false;
   
   const bip21Link = `bitcoin:${invoice.address}?amount=${invoice.btcAmount}&label=${encodeURIComponent(invoice.description)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(bip21Link)}`;
 
   useEffect(() => {
-    if (isInvoiceExpired) {
-        setPaymentStatus('invoice_expired');
-        return;
-    }
-    if (isQuoteExpired) {
-      setPaymentStatus('quote_expired');
-      return;
-    }
+    if (paymentStatus !== 'pending') return;
 
     const timer = setInterval(() => {
       const remaining = invoice.exp - Date.now();
-      setTimeLeft(remaining > 0 ? remaining : 0);
+      if (remaining <= 0) {
+        setTimeLeft(0);
+        setPaymentStatus('quote_expired');
+        clearInterval(timer);
+      } else {
+        setTimeLeft(remaining);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [invoice.exp, isQuoteExpired, isInvoiceExpired]);
+  }, [invoice.exp, paymentStatus]);
 
   useEffect(() => {
-    if (isQuoteExpired || isInvoiceExpired || paymentStatus === 'confirmed' || paymentStatus === 'detected') return;
+    if (paymentStatus !== 'pending') return;
 
     const paymentCheckInterval = setInterval(async () => {
       const statusResult = await checkPaymentStatus(invoice.address, invoice.btcAmount);
@@ -78,7 +82,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
     }, 5000); // Check every 5 seconds
 
     return () => clearInterval(paymentCheckInterval);
-  }, [isQuoteExpired, invoice.btcAmount, invoice.address, paymentStatus, isInvoiceExpired]);
+  }, [invoice.btcAmount, invoice.address, paymentStatus]);
 
 
   const handleCopy = (text: string, type: string) => {
@@ -92,6 +96,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
     startTransition(async () => {
       try {
         await refreshQuote(token);
+        // On success, Next.js redirect will handle the navigation
       } catch (error) {
         toast({
             variant: 'destructive',
@@ -166,8 +171,10 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
       </CardContent>
       <CardFooter className="flex flex-col gap-2 bg-card-foreground/5 p-4">
         {paymentStatus === 'pending' && (
-          <Button className="w-full" onClick={() => handleCopy(bip21Link, 'Payment link')}>
-            <Copy className="mr-2 h-4 w-4" /> Copy Payment Link
+          <Button className="w-full" asChild>
+            <a href={bip21Link}>
+              <Copy className="mr-2 h-4 w-4" /> Open in Wallet
+            </a>
           </Button>
         )}
         {(paymentStatus === 'detected' || paymentStatus === 'confirmed') && txId && (
@@ -182,6 +189,11 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
              Refresh Quote
            </Button>
+        )}
+        {paymentStatus === 'pending' && (
+          <Button variant="ghost" className="w-full" onClick={() => handleCopy(bip21Link, 'Payment link')}>
+            <Copy className="mr-2 h-4 w-4" /> Copy Payment Link
+          </Button>
         )}
       </CardFooter>
     </Card>

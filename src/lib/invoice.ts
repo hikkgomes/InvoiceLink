@@ -32,7 +32,7 @@ export function createSignedToken(payload: InvoicePayload): string {
   return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
-export function verifyAndDecodeToken(token: string): InvoicePayload | null {
+export function verifyAndDecodeToken(token: string, ignoreExpiration: boolean = false): InvoicePayload | null {
   try {
     const [encodedHeader, encodedPayload, signature] = token.split('.');
     
@@ -46,6 +46,13 @@ export function verifyAndDecodeToken(token: string): InvoicePayload | null {
     }
 
     const payload = JSON.parse(base64UrlDecode(encodedPayload)) as InvoicePayload;
+
+    if (!ignoreExpiration && Date.now() > payload.exp) {
+        console.error('Token has expired');
+        // We still return the payload for expired quotes so the UI can handle it
+        return payload;
+    }
+
 
     return payload;
   } catch (error) {
