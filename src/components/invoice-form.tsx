@@ -70,11 +70,21 @@ export function InvoiceForm() {
                   <SelectItem value="USD">USD</SelectItem>
                   <SelectItem value="EUR">EUR</SelectItem>
                   <SelectItem value="GBP">GBP</SelectItem>
+                  <SelectItem value="JPY">JPY</SelectItem>
+                  <SelectItem value="CAD">CAD</SelectItem>
+                  <SelectItem value="AUD">AUD</SelectItem>
+                  <SelectItem value="CHF">CHF</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           {state.errors?.amount && <p className="text-sm text-destructive">{state.errors.amount[0]}</p>}
+          
+          <div className="space-y-2">
+            <Label htmlFor="address">Bitcoin Wallet Address</Label>
+            <Input id="address" name="address" placeholder="Enter your Bitcoin address" required />
+            {state.errors?.address && <p className="text-sm text-destructive">{state.errors.address[0]}</p>}
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="description">Description (Optional)</Label>

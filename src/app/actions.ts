@@ -9,6 +9,7 @@ import { redirect } from 'next/navigation';
 const invoiceSchema = z.object({
   amount: z.coerce.number().positive({ message: 'Amount must be positive.' }),
   currency: z.string().min(1, { message: 'Currency is required.' }),
+  address: z.string().min(26, { message: 'Please enter a valid Bitcoin address.'}),
   description: z.string().max(100, { message: 'Description is too long.' }).optional(),
 });
 
@@ -16,6 +17,7 @@ export async function createInvoice(prevState: any, formData: FormData) {
   const validatedFields = invoiceSchema.safeParse({
     amount: formData.get('amount'),
     currency: formData.get('currency'),
+    address: formData.get('address'),
     description: formData.get('description'),
   });
 
@@ -26,7 +28,7 @@ export async function createInvoice(prevState: any, formData: FormData) {
     };
   }
 
-  const { amount, currency, description } = validatedFields.data;
+  const { amount, currency, description, address } = validatedFields.data;
 
   try {
     const btcPrice = await getBtcPrice(currency);
@@ -37,6 +39,7 @@ export async function createInvoice(prevState: any, formData: FormData) {
       amount,
       currency,
       description: description || '',
+      address,
       btcAmount,
       iat: now,
       exp: now + QUOTE_EXPIRY_MS,
@@ -58,7 +61,7 @@ export async function refreshQuote(token: string) {
     throw new Error('Invalid token for refresh.');
   }
 
-  const { amount, currency, description } = oldPayload;
+  const { amount, currency, description, address } = oldPayload;
 
   try {
     const btcPrice = await getBtcPrice(currency);
@@ -69,6 +72,7 @@ export async function refreshQuote(token: string) {
       amount,
       currency,
       description,
+      address,
       btcAmount,
       iat: now,
       exp: now + QUOTE_EXPIRY_MS,

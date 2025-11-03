@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { type InvoicePayload } from '@/lib/invoice';
-import { DUMMY_BTC_ADDRESS } from '@/lib/constants';
 import { refreshQuote, checkPaymentStatus } from '@/app/actions';
 import { Bitcoin, Clock, Copy, ExternalLink, Loader2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -32,7 +31,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
   const { toast } = useToast();
 
   const isExpired = timeLeft <= 0;
-  const bip21Link = `bitcoin:${DUMMY_BTC_ADDRESS}?amount=${invoice.btcAmount}&label=${encodeURIComponent(invoice.description)}`;
+  const bip21Link = `bitcoin:${invoice.address}?amount=${invoice.btcAmount}&label=${encodeURIComponent(invoice.description)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(bip21Link)}`;
 
   useEffect(() => {
@@ -52,7 +51,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
     if (isExpired || paymentStatus === 'confirmed' || paymentStatus === 'detected') return;
 
     const paymentCheckInterval = setInterval(async () => {
-      const statusResult = await checkPaymentStatus(DUMMY_BTC_ADDRESS, invoice.btcAmount);
+      const statusResult = await checkPaymentStatus(invoice.address, invoice.btcAmount);
       if (statusResult.status === 'detected' || statusResult.status === 'confirmed') {
         setPaymentStatus(statusResult.status);
         setTxId(statusResult.txid || null);
@@ -64,7 +63,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
     }, 5000); // Check every 5 seconds
 
     return () => clearInterval(paymentCheckInterval);
-  }, [isExpired, invoice.btcAmount, paymentStatus]);
+  }, [isExpired, invoice.btcAmount, invoice.address, paymentStatus]);
 
 
   const handleCopy = (text: string, type: string) => {
@@ -118,9 +117,9 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
                 <p className="text-sm text-muted-foreground">≈ {invoice.amount.toFixed(2)} {invoice.currency}</p>
             </div>
 
-            <div className="text-xs text-muted-foreground break-all cursor-pointer" onClick={() => handleCopy(DUMMY_BTC_ADDRESS, 'Address')}>
+            <div className="text-xs text-muted-foreground break-all cursor-pointer" onClick={() => handleCopy(invoice.address, 'Address')}>
                 <p>Send to:</p>
-                <p className="font-mono">{DUMMY_BTC_ADDRESS}</p>
+                <p className="font-mono">{invoice.address}</p>
             </div>
         </div>
         
@@ -130,7 +129,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
               <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-4 w-4" /> Quote expires in</span>
               <span className="font-mono font-medium">{formatTime(timeLeft)}</span>
             </div>
-            <Progress value={(timeLeft / (QUOTE_EXPIRY_MS)) * 100} className="h-2" />
+            <Progress value={(timeLeft / (invoice.exp - invoice.iat))} className="h-2" />
           </div>
         )}
 

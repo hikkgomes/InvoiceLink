@@ -5,6 +5,7 @@ export interface InvoicePayload {
   amount: number;
   currency: string;
   description: string;
+  address: string;
   btcAmount: number;
   iat: number; // Issued at
   exp: number; // Expires
@@ -58,9 +59,25 @@ export async function getBtcPrice(currency: string): Promise<number> {
   // and handle different currencies.
   console.log(`Fetching BTC price for ${currency}`);
   await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-  if (currency.toUpperCase() === 'USD') {
-    return MOCK_BTC_PRICE_USD;
+  
+  // This is a simplified mock. In a real application, you'd use a price feed
+  // to get real-time exchange rates for all supported currencies.
+  const rates: { [key: string]: number } = {
+    USD: MOCK_BTC_PRICE_USD,
+    EUR: MOCK_BTC_PRICE_USD * 0.93,
+    GBP: MOCK_BTC_PRICE_USD * 0.79,
+    JPY: MOCK_BTC_PRICE_USD * 157,
+    CAD: MOCK_BTC_PRICE_USD * 1.37,
+    AUD: MOCK_BTC_PRICE_USD * 1.50,
+    CHF: MOCK_BTC_PRICE_USD * 0.90,
+  };
+
+  const rate = rates[currency.toUpperCase()];
+
+  if (rate) {
+    return MOCK_BTC_PRICE_USD / (rate / MOCK_BTC_PRICE_USD);
   }
-  // For simplicity, we'll pretend other currencies are at par with USD.
+
+  // Fallback for any other currency
   return MOCK_BTC_PRICE_USD;
 }
