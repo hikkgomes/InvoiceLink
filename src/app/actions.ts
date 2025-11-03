@@ -7,7 +7,6 @@ import {
   signInvoice,
   verifyInvoice,
   computeSatsForFiat,
-  btcFromSats,
   listAddressTxidsBlockchair,
   getTxDetailsBlockchair,
   getHistoricalRateAtBlock,
@@ -135,9 +134,4 @@ export async function checkPaymentStatusFiatMatch(params: {
     console.error("checkPaymentStatusFiatMatch failed:", e);
     return { status: "error" as const };
   }
-}
-
-// Helper for client display
-export function satsToBtcString(sats: number) {
-  return btcFromSats(sats).toFixed(8);
 }

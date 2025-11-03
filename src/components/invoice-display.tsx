@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { type InvoicePayload } from '@/lib/invoice';
-import { refreshQuoteForToken, checkPaymentStatusFiatMatch, satsToBtcString } from '@/app/actions';
+import { type InvoicePayload, satsToBtcString } from '@/lib/invoice';
+import { refreshQuoteForToken, checkPaymentStatusFiatMatch } from '@/app/actions';
+import { QUOTE_EXPIRY_MS } from '@/lib/constants';
 import { Bitcoin, Clock, Copy, ExternalLink, Loader2, RefreshCw, CheckCircle2, CalendarOff } from 'lucide-react';
 import { Badge } from './ui/badge';
 

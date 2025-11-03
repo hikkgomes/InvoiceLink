@@ -129,3 +129,8 @@ export async function getHistoricalRateAtBlock(
   if (lower === "usd" && "market_price_usd" in ctx) return Number((ctx as any)["market_price_usd"]);
   throw new Error("No historical market price found for requested currency");
 }
+
+// Helper for client display
+export function satsToBtcString(sats: number) {
+  return btcFromSats(sats).toFixed(8);
+}
