@@ -67,13 +67,13 @@ export async function createInvoice(prevState: any, formData: FormData) {
 export async function refreshQuote(token: string) {
     const oldPayload = verifyAndDecodeToken(token, true);
     if (!oldPayload) {
-        throw new Error('Invalid token for refresh.');
+        return { error: 'Invalid token for refresh.' };
     }
 
     const { amount, currency, description, address, invoiceExpiresAt } = oldPayload;
 
     if (invoiceExpiresAt && Date.now() > invoiceExpiresAt) {
-        throw new Error('This invoice has fully expired and cannot be refreshed.');
+        return { error: 'This invoice has fully expired and cannot be refreshed.' };
     }
 
     let btcPrice;
@@ -81,7 +81,8 @@ export async function refreshQuote(token: string) {
         btcPrice = await getBtcPrice(currency);
     } catch (error) {
         console.error('Failed to fetch BTC price during refresh:', error);
-        throw new Error('Could not fetch latest Bitcoin price. Please try again in a moment.');
+        const errorMessage = error instanceof Error ? error.message : 'Could not fetch latest Bitcoin price.';
+        return { error: errorMessage };
     }
 
     try {
@@ -101,12 +102,14 @@ export async function refreshQuote(token: string) {
         };
         
         const newToken = createSignedToken(newPayload);
-        revalidatePath(`/invoice/${token}`);
+        // On a successful refresh, we redirect the user to the new invoice page.
+        // The `redirect` function throws a NEXT_REDIRECT error, which is handled by Next.js.
+        // No value is returned to the client in this case.
         redirect(`/invoice/${newToken}`);
 
     } catch (error) {
         console.error('Failed to create new token during refresh:', error);
-        throw new Error('Failed to refresh quote. An unexpected error occurred.');
+        return { error: 'Failed to refresh quote. An unexpected error occurred.' };
     }
 }
 

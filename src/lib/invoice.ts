@@ -61,29 +61,64 @@ export function verifyAndDecodeToken(token: string, ignoreExpiration: boolean = 
   }
 }
 
-/**
- * Fetches the current price of Bitcoin in the specified currency.
- * @param currency The currency to get the price in (e.g., 'USD', 'EUR').
- * @returns The price of 1 Bitcoin in the specified currency.
- */
+// Helper function to add a delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 2, backoff = 300) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) {
+        return response.json();
+      }
+      console.warn(`Attempt ${i + 1} failed for ${url} with status: ${response.status}`);
+    } catch (error) {
+      console.warn(`Attempt ${i + 1} failed for ${url} with error:`, error);
+    }
+    await delay(backoff * (i + 1));
+  }
+  throw new Error(`Failed to fetch from ${url} after ${retries} attempts.`);
+}
+
+
+async function getBitstampPrice(currency: string): Promise<number> {
+    const currencyCode = currency.toLowerCase();
+    if (currencyCode !== 'usd' && currencyCode !== 'eur') {
+        throw new Error(`Bitstamp fallback only supports USD and EUR.`);
+    }
+
+    const ticker = `bt${currencyCode}`;
+    const data = await fetchWithRetry(`https://www.bitstamp.net/api/v2/ticker/${ticker}/`, { cache: 'no-store' });
+    if (data && data.last) {
+        return parseFloat(data.last);
+    } else {
+        throw new Error(`Invalid response from Bitstamp API.`);
+    }
+}
+
 export async function getBtcPrice(currency: string): Promise<number> {
   const currencyCode = currency.toLowerCase();
+  
+  // 1. Primary Source: CoinGecko
   try {
-    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=${currencyCode}`);
-    if (!response.ok) {
-      throw new Error(`CoinGecko API responded with status ${response.status}`);
-    }
-    const data = await response.json();
-    
+    const data = await fetchWithRetry(
+      `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=${currencyCode}`,
+      { cache: 'no-store' }
+    );
     if (data.bitcoin && data.bitcoin[currencyCode]) {
       return data.bitcoin[currencyCode];
     } else {
-      throw new Error(`Currency '${currency}' not supported by the price API.`);
+       throw new Error(`Currency '${currency}' not found in CoinGecko response.`);
     }
   } catch (error) {
-    console.error("Failed to fetch BTC price:", error);
-    // As a fallback, you could return a stale or default price,
-    // but for now, we'll re-throw to make the issue visible.
-    throw new Error('Could not fetch Bitcoin price. Please try again later.');
+    console.warn("CoinGecko API failed, attempting fallback:", error);
+    
+    // 2. Fallback Source: Bitstamp (for USD/EUR)
+    try {
+        return await getBitstampPrice(currency);
+    } catch (fallbackError) {
+        console.error("All price sources failed:", fallbackError);
+        throw new Error('Price service unavailable. Please try again later.');
+    }
   }
 }

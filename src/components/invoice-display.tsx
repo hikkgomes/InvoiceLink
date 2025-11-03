@@ -94,16 +94,16 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
 
   const handleRefresh = () => {
     startTransition(async () => {
-      try {
-        await refreshQuote(token);
-        // On success, Next.js redirect will handle the navigation
-      } catch (error) {
-        toast({
-            variant: 'destructive',
-            title: 'Refresh Failed',
-            description: error instanceof Error ? error.message : 'An unknown error occurred.',
-        });
-      }
+        const result = await refreshQuote(token);
+        // If the server action returns an error, display it in a toast.
+        // On success, Next.js handles the redirect and this code is not reached.
+        if (result?.error) {
+            toast({
+                variant: 'destructive',
+                title: 'Refresh Failed',
+                description: result.error,
+            });
+        }
     });
   };
 
