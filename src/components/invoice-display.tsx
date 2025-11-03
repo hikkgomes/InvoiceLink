@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import QRCode from "qrcode";
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { type InvoicePayload } from '@/lib/invoice';
-import { refreshQuote, checkPaymentStatus } from '@/app/actions';
+import { refreshQuoteForToken, checkPaymentStatusFiatMatch, satsToBtcString } from '@/app/actions';
 import { Bitcoin, Clock, Copy, ExternalLink, Loader2, RefreshCw, CheckCircle2, CalendarOff } from 'lucide-react';
 import { Badge } from './ui/badge';
 
@@ -28,7 +28,6 @@ function formatExpiryDate(timestamp: number) {
     });
 }
 
-
 export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { invoice: InvoicePayload, token: string, isQuoteInitiallyExpired: boolean }) {
   const [timeLeft, setTimeLeft] = useState(invoice.exp - Date.now());
   const router = useRouter();
@@ -41,68 +40,66 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
     return 'pending';
   };
 
-  const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>(getInitialStatus);
+  const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>(getInitialStatus());
   const [txId, setTxId] = useState<string | null>(null);
 
   const { toast } = useToast();
   
-  const bip21Link = `bitcoin:${invoice.address}?amount=${invoice.btcAmount}&label=${encodeURIComponent(invoice.description)}`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(bip21Link)}`;
+  const bip21Link = `bitcoin:${invoice.address}?amount=${satsToBtcString(invoice.amountSats)}&label=${encodeURIComponent(invoice.description)}`;
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (paymentStatus !== 'pending') return;
+    QRCode.toDataURL(bip21Link, { margin: 1, width: 256 }).then(setQrDataUrl).catch(() => setQrDataUrl(null));
+  }, [bip21Link]);
 
+  // 1) Poll Blockchair fiat-match FIRST (so paid invoices never refresh)
+  useEffect(() => {
+    if (paymentStatus !== 'pending') return;
+    const paymentCheckInterval = setInterval(async () => {
+      const res = await checkPaymentStatusFiatMatch({
+        address: invoice.address,
+        fiatAmount: invoice.amountFiat,
+        currency: invoice.currency,
+        createdAt: invoice.iat,
+        invoiceExpiresAt: invoice.invoiceExpiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+      if (res.status === 'detected' || res.status === 'confirmed') {
+        setPaymentStatus(res.status);
+        setTxId((res as any).txid || null);
+        clearInterval(paymentCheckInterval);
+      } else if (res.status === 'error') {
+        setPaymentStatus('error');
+        clearInterval(paymentCheckInterval);
+      }
+    }, 5000);
+    return () => clearInterval(paymentCheckInterval);
+  }, [paymentStatus, invoice]);
+
+  // 2) Auto-refresh ONLY if still pending when quote expires
+  useEffect(() => {
+    if (paymentStatus !== 'pending') return;
     const timer = setInterval(() => {
       const remaining = invoice.exp - Date.now();
       if (remaining <= 0) {
-        setTimeLeft(0);
-        setPaymentStatus('quote_expired');
         clearInterval(timer);
+        setPaymentStatus('refreshing');
+        refreshQuoteForToken(token).then(result => {
+          if (result?.token) {
+            const url = new URL(window.location.href);
+            url.hash = "#" + result.token;
+            window.history.replaceState({}, "", url.toString());
+            router.refresh(); // This re-runs the page component with the new token
+          } else if (result?.error) {
+            toast({ variant: 'destructive', title: 'Refresh Failed', description: result.error });
+            setPaymentStatus('error');
+          }
+        });
       } else {
         setTimeLeft(remaining);
       }
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [invoice.exp, paymentStatus]);
-
-  useEffect(() => {
-    if (paymentStatus !== 'pending') return;
-
-    const paymentCheckInterval = setInterval(async () => {
-      const statusResult = await checkPaymentStatus(invoice.address, invoice.btcAmount);
-      if (statusResult.status === 'detected' || statusResult.status === 'confirmed') {
-        setPaymentStatus(statusResult.status);
-        setTxId(statusResult.txid || null);
-        clearInterval(paymentCheckInterval);
-      } else if (statusResult.status === 'error') {
-        setPaymentStatus('error');
-        clearInterval(paymentCheckInterval);
-      }
-    }, 5000); // Check every 5 seconds
-
-    return () => clearInterval(paymentCheckInterval);
-  }, [invoice.btcAmount, invoice.address, paymentStatus]);
-
-  useEffect(() => {
-    if (paymentStatus === 'quote_expired' && !isInvoiceExpired) {
-      setPaymentStatus('refreshing');
-      refreshQuote(token).then(result => {
-        if (result?.redirect) {
-          router.push(result.redirect);
-        } else if (result?.error) {
-          toast({
-              variant: 'destructive',
-              title: 'Refresh Failed',
-              description: result.error,
-          });
-          // If refresh fails, stop trying to refresh to avoid loops
-          setPaymentStatus('error'); 
-        }
-      });
-    }
-  }, [paymentStatus, isInvoiceExpired, token, router, toast]);
-
+  }, [paymentStatus, invoice.exp, token, router, toast]);
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
@@ -137,18 +134,25 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <div className="flex flex-col items-center justify-center">
-            <div className="bg-white p-2 rounded-lg">
-                <Image src={qrCodeUrl} alt="Bitcoin QR Code" width={200} height={200} unoptimized />
-            </div>
+            {qrDataUrl ? (
+              <div className="bg-white p-2 rounded-lg">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrDataUrl} alt="Bitcoin QR Code" width={200} height={200} />
+              </div>
+            ) : (
+              <div className="w-[200px] h-[200px] flex items-center justify-center bg-muted rounded-lg">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
         </div>
 
         <div className="space-y-4 text-center">
-            <div className="cursor-pointer" onClick={() => handleCopy(String(invoice.btcAmount), 'BTC amount')}>
+            <div className="cursor-pointer" onClick={() => handleCopy(satsToBtcString(invoice.amountSats), 'BTC amount')}>
                 <p className="text-sm text-muted-foreground">Amount</p>
                 <p className="text-2xl font-bold font-mono tracking-tighter flex items-center justify-center gap-2">
-                    <Bitcoin className="h-6 w-6 text-accent" /> {invoice.btcAmount.toFixed(8)}
+                    <Bitcoin className="h-6 w-6 text-accent" /> {satsToBtcString(invoice.amountSats)}
                 </p>
-                <p className="text-sm text-muted-foreground">≈ {invoice.amount.toFixed(2)} {invoice.currency}</p>
+                <p className="text-sm text-muted-foreground">≈ {invoice.amountFiat.toFixed(2)} {invoice.currency}</p>
             </div>
 
             <div className="text-xs text-muted-foreground break-all cursor-pointer" onClick={() => handleCopy(invoice.address, 'Address')}>
@@ -163,7 +167,7 @@ export function InvoiceDisplay({ invoice, token, isQuoteInitiallyExpired }: { in
               <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-4 w-4" /> Quote expires in</span>
               <span className="font-mono font-medium">{formatTime(timeLeft)}</span>
             </div>
-            <Progress value={(timeLeft / (invoice.exp - invoice.iat))} className="h-2" />
+            <Progress value={(timeLeft / QUOTE_EXPIRY_MS) * 100} className="h-2" />
           </div>
         )}
 

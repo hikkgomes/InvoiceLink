@@ -12,10 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { validate as validateBtcAddress } from 'bitcoin-address-validation';
 
 const initialState = {
-  message: null,
-  errors: {},
+  error: null,
+  details: {},
   token: null,
 };
 
@@ -36,19 +37,34 @@ export function InvoiceForm() {
 
   useEffect(() => {
     if (state.token) {
-      router.push(`/invoice/${state.token}`);
+      router.push(`/invoice#${state.token}`);
     }
-    if (state.message && !state.token) {
+    if (state.error && !state.token) {
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: state.message,
+        title: 'Error Creating Invoice',
+        description: state.error,
       });
     }
   }, [state, router, toast]);
 
+  const validateAddress = (addr: string) => {
+    try { return validateBtcAddress(addr); } catch { return false; }
+  };
+
   return (
-    <form action={formAction}>
+    <form action={async (fd) => {
+      const addr = String(fd.get("address") || "");
+      if (!validateAddress(addr)) {
+        toast({
+            variant: "destructive",
+            title: "Invalid Address",
+            description: "Please enter a valid Bitcoin address.",
+        });
+        return;
+      }
+      formAction(fd);
+    }}>
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Create Invoice</CardTitle>
@@ -78,24 +94,24 @@ export function InvoiceForm() {
               </Select>
             </div>
           </div>
-          {state.errors?.amount && <p className="text-sm text-destructive">{state.errors.amount[0]}</p>}
+          {state.details?.amount && <p className="text-sm text-destructive">{state.details.amount[0]}</p>}
           
           <div className="space-y-2">
             <Label htmlFor="address">Bitcoin Wallet Address</Label>
             <Input id="address" name="address" placeholder="Enter your Bitcoin address" required />
-            {state.errors?.address && <p className="text-sm text-destructive">{state.errors.address[0]}</p>}
+            {state.details?.address && <p className="text-sm text-destructive">{state.details.address[0]}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="description">Description (Optional)</Label>
             <Textarea id="description" name="description" placeholder="e.g., Coffee and cake" />
-             {state.errors?.description && <p className="text-sm text-destructive">{state.errors.description[0]}</p>}
+             {state.details?.description && <p className="text-sm text-destructive">{state.details.description[0]}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="expiresIn">Expires in (days, optional)</Label>
-            <Input id="expiresIn" name="expiresIn" type="number" placeholder="e.g., 7" min="1" />
-            {state.errors?.expiresIn && <p className="text-sm text-destructive">{state.errors.expiresIn[0]}</p>}
+            <Input id="expiresIn" name="expiresIn" type="number" placeholder="Default: 7" min="1" />
+            {state.details?.expiresIn && <p className="text-sm text-destructive">{state.details.expiresIn[0]}</p>}
           </div>
         </CardContent>
         <CardFooter>
