@@ -10,8 +10,10 @@ if (process.env.NODE_ENV === "production" && isServer) {
     throw new Error("JWT_SECRET must be set to a long random value (>=32 chars) in production.");
   }
 }
-export const JWT_SECRET = process.env.JWT_SECRET!;
+export const JWT_SECRET = process.env.JWT_SECRET || 'default-super-secret-key-for-dev';
 
 // External APIs we use
 export const BLOCKCHAIR_API = "https://api.blockchair.com"; // historical fiat at block/tx time
-export const FIAT_TOLERANCE_BPS = 100;                       // 1% window for fiat match
+
+// Fiat match tolerance (in basis points). 100bps = 1%.
+export const FIAT_TOLERANCE_BPS = parseInt(process.env.FIAT_TOLERANCE_BPS || "100", 10);

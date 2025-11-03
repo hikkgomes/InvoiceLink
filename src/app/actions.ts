@@ -10,12 +10,14 @@ import {
   listAddressTxidsBlockchair,
   getTxDetailsBlockchair,
   getHistoricalRateAtBlock,
+  btcFromSats,
 } from '@/lib/invoice';
+import { validate as validateBtcAddress } from 'bitcoin-address-validation';
 
 const invoiceSchema = z.object({
   amount: z.coerce.number().positive(),
   currency: z.string().min(1),
-  address: z.string().min(26),
+  address: z.string().min(26).refine(v => validateBtcAddress(v), { message: "Invalid Bitcoin address" }),
   description: z.string().max(100).optional(),
   expiresIn: z.coerce.number().int().positive().optional(),
 });
@@ -43,8 +45,14 @@ export async function createInvoice(prevState: any, formData: FormData) {
 
   try {
     const now = Date.now();
-    const price = await getBtcPrice(currency);
+    const [price, usdPrice] = await Promise.all([
+        getBtcPrice(currency),
+        getBtcPrice("USD"),
+    ]);
+
     const amountSats = computeSatsForFiat(amount, currency, price);
+    const amountUsd = btcFromSats(amountSats) * usdPrice;
+    
     const exp = now + QUOTE_EXPIRY_MS;
     const invoiceExpiresAt = now + (expiresIn ?? 7) * 24 * 60 * 60 * 1000;
 
@@ -54,6 +62,7 @@ export async function createInvoice(prevState: any, formData: FormData) {
       description: description || "",
       address,
       amountSats,
+      amountUsd,
       iat: now,
       exp,
       invoiceExpiresAt,
@@ -75,9 +84,14 @@ export async function refreshQuoteForToken(token: string) {
     return { error: "Invoice expired" };
   }
   try {
-    const price = await getBtcPrice(old.currency);
+    const [price, usdPrice] = await Promise.all([
+        getBtcPrice(old.currency),
+        getBtcPrice("USD"),
+    ]);
     const amountSats = computeSatsForFiat(old.amountFiat, old.currency, price);
-    const freshPayload = { ...old, amountSats, iat: now, exp: now + QUOTE_EXPIRY_MS };
+    const amountUsd = btcFromSats(amountSats) * usdPrice;
+
+    const freshPayload = { ...old, amountSats, amountUsd, iat: now, exp: now + QUOTE_EXPIRY_MS };
     const newToken = await signInvoice(freshPayload);
     return { token: newToken, payload: freshPayload };
   } catch(e) {
@@ -91,18 +105,17 @@ export async function refreshQuoteForToken(token: string) {
  * - scans recent txs to the invoice address
  * - for each confirmed tx within [createdAt, invoiceExpiresAt]:
  *   - sum sats paid to the address
- *   - fetch historical BTC→fiat at that block
- *   - accept if |fiatPaid - invoiceFiat| <= tolerance
+ *   - fetch historical BTC→USD at that block
+ *   - accept if |usdPaid - invoiceUsd| <= tolerance
  * - unconfirmed hits => "detected"
  */
 export async function checkPaymentStatusFiatMatch(params: {
   address: string;
-  fiatAmount: number;
-  currency: string;         // "USD" | "EUR" | ...
+  usdAmount: number;
   createdAt: number;        // ms epoch
   invoiceExpiresAt: number; // ms epoch
 }) {
-  const { address, fiatAmount, currency, createdAt, invoiceExpiresAt } = params;
+  const { address, usdAmount, createdAt, invoiceExpiresAt } = params;
 
   try {
     const txids = await listAddressTxidsBlockchair(address);
@@ -111,7 +124,7 @@ export async function checkPaymentStatusFiatMatch(params: {
     let hasUnconfirmed = false;
 
     for (const txid of txids) {
-      const d = await getTxDetailsBlockchair(txid, address, currency);
+      const d = await getTxDetailsBlockchair(txid, address);
       if (!d.satsToAddress) continue;
 
       const t = d.time;
@@ -122,14 +135,14 @@ export async function checkPaymentStatusFiatMatch(params: {
         continue;
       }
 
-      const price = d.blockId ? await getHistoricalRateAtBlock(d.blockId, currency) : null;
+      const price = d.blockId ? await getHistoricalRateAtBlock(d.blockId, "USD") : null;
       if (!price) continue;
 
       const btcPaid = d.satsToAddress / 1e8;
-      const fiatPaid = btcPaid * price;
-      const allowed = (FIAT_TOLERANCE_BPS / 10_000) * fiatAmount;
+      const usdPaid = btcPaid * price;
+      const allowed = (FIAT_TOLERANCE_BPS / 10_000) * usdAmount;
 
-      if (Math.abs(fiatPaid - fiatAmount) <= allowed) {
+      if (Math.abs(usdPaid - usdAmount) <= allowed) {
         return { status: "confirmed" as const, txid };
       }
     }

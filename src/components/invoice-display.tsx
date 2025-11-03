@@ -80,8 +80,7 @@ export function InvoiceDisplay({ initialInvoice, initialToken, onInvoiceUpdate }
       try {
         const res = await checkPaymentStatusFiatMatch({
           address: invoice.address,
-          fiatAmount: invoice.amountFiat,
-          currency: invoice.currency,
+          usdAmount: invoice.amountUsd,
           createdAt: invoice.iat,
           invoiceExpiresAt: invoice.invoiceExpiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
         });
