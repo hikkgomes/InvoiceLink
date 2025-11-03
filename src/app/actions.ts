@@ -11,6 +11,7 @@ const invoiceSchema = z.object({
   currency: z.string().min(1, { message: 'Currency is required.' }),
   address: z.string().min(26, { message: 'Please enter a valid Bitcoin address.'}),
   description: z.string().max(100, { message: 'Description is too long.' }).optional(),
+  expiresIn: z.coerce.number().int().positive().optional(),
 });
 
 export async function createInvoice(prevState: any, formData: FormData) {
@@ -19,6 +20,7 @@ export async function createInvoice(prevState: any, formData: FormData) {
     currency: formData.get('currency'),
     address: formData.get('address'),
     description: formData.get('description'),
+    expiresIn: formData.get('expiresIn'),
   });
 
   if (!validatedFields.success) {
@@ -28,13 +30,15 @@ export async function createInvoice(prevState: any, formData: FormData) {
     };
   }
 
-  const { amount, currency, description, address } = validatedFields.data;
+  const { amount, currency, description, address, expiresIn } = validatedFields.data;
 
   try {
     const btcPrice = await getBtcPrice(currency);
     const amountWithCushion = amount * 1.0099;
     const btcAmount = parseFloat((amountWithCushion / btcPrice).toFixed(8));
     const now = Date.now();
+    
+    const invoiceExpiresAt = expiresIn ? now + expiresIn * 24 * 60 * 60 * 1000 : undefined;
 
     const payload = {
       amount,
@@ -44,6 +48,7 @@ export async function createInvoice(prevState: any, formData: FormData) {
       btcAmount,
       iat: now,
       exp: now + QUOTE_EXPIRY_MS,
+      invoiceExpiresAt,
     };
 
     const token = createSignedToken(payload);
@@ -62,7 +67,7 @@ export async function refreshQuote(token: string) {
     throw new Error('Invalid token for refresh.');
   }
 
-  const { amount, currency, description, address } = oldPayload;
+  const { amount, currency, description, address, invoiceExpiresAt } = oldPayload;
 
   try {
     const btcPrice = await getBtcPrice(currency);
@@ -78,6 +83,7 @@ export async function refreshQuote(token: string) {
       btcAmount,
       iat: now,
       exp: now + QUOTE_EXPIRY_MS,
+      invoiceExpiresAt,
     };
     
     const newToken = createSignedToken(newPayload);

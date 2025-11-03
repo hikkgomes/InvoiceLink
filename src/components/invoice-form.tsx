@@ -91,6 +91,12 @@ export function InvoiceForm() {
             <Textarea id="description" name="description" placeholder="e.g., Coffee and cake" />
              {state.errors?.description && <p className="text-sm text-destructive">{state.errors.description[0]}</p>}
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expiresIn">Expires in (days, optional)</Label>
+            <Input id="expiresIn" name="expiresIn" type="number" placeholder="e.g., 7" min="1" />
+            {state.errors?.expiresIn && <p className="text-sm text-destructive">{state.errors.expiresIn[0]}</p>}
+          </div>
         </CardContent>
         <CardFooter>
           <SubmitButton />

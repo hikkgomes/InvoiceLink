@@ -9,6 +9,7 @@ export interface InvoicePayload {
   btcAmount: number;
   iat: number; // Issued at
   exp: number; // Expires
+  invoiceExpiresAt?: number; // Optional invoice expiry timestamp
 }
 
 function base64UrlEncode(data: string) {

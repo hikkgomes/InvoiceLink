@@ -9,10 +9,10 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { type InvoicePayload } from '@/lib/invoice';
 import { refreshQuote, checkPaymentStatus } from '@/app/actions';
-import { Bitcoin, Clock, Copy, ExternalLink, Loader2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Bitcoin, Clock, Copy, ExternalLink, Loader2, RefreshCw, CheckCircle2, CalendarOff } from 'lucide-react';
 import { Badge } from './ui/badge';
 
-type InvoiceStatus = 'pending' | 'detected' | 'confirmed' | 'expired' | 'error';
+type InvoiceStatus = 'pending' | 'detected' | 'confirmed' | 'quote_expired' | 'invoice_expired' | 'error';
 
 function formatTime(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -20,6 +20,14 @@ function formatTime(ms: number) {
   const seconds = (totalSeconds % 60).toString().padStart(2, '0');
   return `${minutes}:${seconds}`;
 }
+
+function formatExpiryDate(timestamp: number) {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric'
+    });
+}
+
 
 export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, token: string }) {
   const [timeLeft, setTimeLeft] = useState(invoice.exp - Date.now());
@@ -30,25 +38,32 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
   const router = useRouter();
   const { toast } = useToast();
 
-  const isExpired = timeLeft <= 0;
+  const isQuoteExpired = timeLeft <= 0;
+  const isInvoiceExpired = invoice.invoiceExpiresAt ? Date.now() > invoice.invoiceExpiresAt : false;
+  
   const bip21Link = `bitcoin:${invoice.address}?amount=${invoice.btcAmount}&label=${encodeURIComponent(invoice.description)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(bip21Link)}`;
 
   useEffect(() => {
-    if (isExpired) {
-      setPaymentStatus('expired');
+    if (isInvoiceExpired) {
+        setPaymentStatus('invoice_expired');
+        return;
+    }
+    if (isQuoteExpired) {
+      setPaymentStatus('quote_expired');
       return;
     }
 
     const timer = setInterval(() => {
-      setTimeLeft(invoice.exp - Date.now());
+      const remaining = invoice.exp - Date.now();
+      setTimeLeft(remaining > 0 ? remaining : 0);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [invoice.exp, isExpired]);
+  }, [invoice.exp, isQuoteExpired, isInvoiceExpired]);
 
   useEffect(() => {
-    if (isExpired || paymentStatus === 'confirmed' || paymentStatus === 'detected') return;
+    if (isQuoteExpired || isInvoiceExpired || paymentStatus === 'confirmed' || paymentStatus === 'detected') return;
 
     const paymentCheckInterval = setInterval(async () => {
       const statusResult = await checkPaymentStatus(invoice.address, invoice.btcAmount);
@@ -63,7 +78,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
     }, 5000); // Check every 5 seconds
 
     return () => clearInterval(paymentCheckInterval);
-  }, [isExpired, invoice.btcAmount, invoice.address, paymentStatus]);
+  }, [isQuoteExpired, invoice.btcAmount, invoice.address, paymentStatus, isInvoiceExpired]);
 
 
   const handleCopy = (text: string, type: string) => {
@@ -74,8 +89,16 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
   };
 
   const handleRefresh = () => {
-    startTransition(() => {
-      refreshQuote(token);
+    startTransition(async () => {
+      try {
+        await refreshQuote(token);
+      } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Refresh Failed',
+            description: error instanceof Error ? error.message : 'An unknown error occurred.',
+        });
+      }
     });
   };
 
@@ -83,7 +106,8 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
     pending: { text: 'Waiting for payment', color: 'bg-yellow-500/80', icon: <Loader2 className="h-4 w-4 animate-spin" /> },
     detected: { text: 'Payment detected', color: 'bg-blue-500', icon: <CheckCircle2 className="h-4 w-4" /> },
     confirmed: { text: 'Payment confirmed', color: 'bg-green-500', icon: <CheckCircle2 className="h-4 w-4" /> },
-    expired: { text: 'Quote expired', color: 'bg-red-500', icon: <Clock className="h-4 w-4" /> },
+    quote_expired: { text: 'Quote expired', color: 'bg-red-500', icon: <Clock className="h-4 w-4" /> },
+    invoice_expired: { text: 'Invoice expired', color: 'bg-destructive', icon: <CalendarOff className="h-4 w-4" /> },
     error: { text: 'Status check error', color: 'bg-gray-500', icon: <Clock className="h-4 w-4" /> },
   };
   
@@ -123,7 +147,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
             </div>
         </div>
         
-        {!isExpired && paymentStatus === 'pending' && (
+        {paymentStatus === 'pending' && (
           <div>
             <div className="flex justify-between items-center text-sm mb-1">
               <span className="text-muted-foreground flex items-center gap-1"><Clock className="h-4 w-4" /> Quote expires in</span>
@@ -133,9 +157,15 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
           </div>
         )}
 
+        {invoice.invoiceExpiresAt && (
+            <div className="text-center text-xs text-muted-foreground pt-2">
+                Invoice valid until {formatExpiryDate(invoice.invoiceExpiresAt)}
+            </div>
+        )}
+
       </CardContent>
       <CardFooter className="flex flex-col gap-2 bg-card-foreground/5 p-4">
-        {paymentStatus === 'pending' && !isExpired && (
+        {paymentStatus === 'pending' && (
           <Button className="w-full" onClick={() => handleCopy(bip21Link, 'Payment link')}>
             <Copy className="mr-2 h-4 w-4" /> Copy Payment Link
           </Button>
@@ -147,7 +177,7 @@ export function InvoiceDisplay({ invoice, token }: { invoice: InvoicePayload, to
                 </a>
             </Button>
         )}
-        {isExpired && (
+        {paymentStatus === 'quote_expired' && !isInvoiceExpired && (
            <Button className="w-full" onClick={handleRefresh} disabled={isPending}>
              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
              Refresh Quote
