@@ -41,7 +41,9 @@ export async function createInvoice(prevState: any, formData: FormData) {
     const btcAmount = parseFloat((amountWithCushion / btcPrice).toFixed(8));
     const now = Date.now();
     
-    const invoiceExpiresAt = expiresIn ? now + expiresIn * 24 * 60 * 60 * 1000 : undefined;
+    // Default to 7 days if expiresIn is not provided by the user
+    const finalExpiresInDays = expiresIn ?? 7;
+    const invoiceExpiresAt = now + finalExpiresInDays * 24 * 60 * 60 * 1000;
 
     const payload = {
       amount,
