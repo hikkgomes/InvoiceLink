@@ -38,7 +38,7 @@ export async function createInvoice(prevState: any, formData: FormData) {
   try {
     const now = Date.now();
     const price = await getBtcPrice(currency);
-    const amountSats = computeSatsForFiat(amount, currency, price, 0.99);
+    const amountSats = computeSatsForFiat(amount, currency, price);
     const exp = now + QUOTE_EXPIRY_MS;
     const invoiceExpiresAt = now + (expiresIn ?? 7) * 24 * 60 * 60 * 1000;
 
@@ -70,7 +70,7 @@ export async function refreshQuoteForToken(token: string) {
   }
   try {
     const price = await getBtcPrice(old.currency);
-    const amountSats = computeSatsForFiat(old.amountFiat, old.currency, price, 0.99);
+    const amountSats = computeSatsForFiat(old.amountFiat, old.currency, price);
     const fresh = { ...old, amountSats, iat: now, exp: now + QUOTE_EXPIRY_MS };
     const newToken = await signInvoice(fresh);
     return { token: newToken };

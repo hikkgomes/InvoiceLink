@@ -68,9 +68,8 @@ export async function getBtcPrice(vs: string): Promise<number> {
 }
 
 // Cushion and conversion (default +0.99%)
-export function computeSatsForFiat(fiatAmount: number, _vs: string, price: number, cushionPct = 0.99): number {
-  const cushioned = fiatAmount * (1 + cushionPct / 100);
-  const btc = cushioned / price;
+export function computeSatsForFiat(fiatAmount: number, _vs: string, price: number): number {
+  const btc = fiatAmount / price;
   return sats(Number(btc.toFixed(8)));
 }
 
