@@ -3,12 +3,19 @@
 ## Core Features:
 
 - Invoice Creation: Create a Bitcoin invoice link with specified amount, currency, and description.
-- JWT Token Generation: Generates a signed JWT token encoding all invoice data, ensuring data integrity and statelessness.
-- BTC Price Fetch: Fetches the real-time BTC price from CoinMarketCap to calculate the equivalent BTC amount.
+- JWT Token Generation: Generates a signed JWT token encoding invoice data with standard JWT `iat`/`exp` claims.
+- BTC Price Fetch: Uses CoinGecko for all supported currencies. Falls back to Bitstamp for USD/EUR only.
 - BIP21 Link Generation: Generates a BIP21-formatted Bitcoin URI for easy payment in wallets.
 - Invoice Display: Renders a minimal, mobile-first invoice page with QR code, BTC amount, and expiry date.
 - Price Lock and Refresh: Allows freezing the BTC quote for a specified time, with an option to refresh the quote before expiry.
-- Payment Status Check: Allows checking the payment status by querying mempool.space for UTXOs.
+- Payment Status Check: Checks payment status by querying Blockchair address/transaction/block APIs.
+- Sticky Detection: Once a matching unconfirmed transaction is detected, the client keeps detected state while polling for confirmation.
+
+## Known Constraints:
+
+- The system is non-custodial (no private keys managed by platform).
+- Matching is address-based and can be ambiguous when the same address is reused across many invoices.
+- Unique per-invoice address derivation is out of scope for this MVP.
 
 ## Style Guidelines:
 
