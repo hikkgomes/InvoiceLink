@@ -19,5 +19,10 @@ describe("mergePolledPaymentStatus", () => {
   it("keeps confirmed sticky regardless of later poll status", () => {
     expect(mergePolledPaymentStatus("confirmed", "pending")).toBe("confirmed");
     expect(mergePolledPaymentStatus("confirmed", "detected")).toBe("confirmed");
+    expect(mergePolledPaymentStatus("confirmed", "invoice_expired")).toBe("confirmed");
+  });
+
+  it("maps invoice_expired unless already confirmed", () => {
+    expect(mergePolledPaymentStatus("pending", "invoice_expired")).toBe("invoice_expired");
   });
 });

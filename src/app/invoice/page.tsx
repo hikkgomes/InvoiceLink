@@ -1,74 +1,14 @@
-"use client";
+import Link from 'next/link';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { APP_NAME } from "@/lib/constants";
-import { InvoiceDisplay } from "@/components/invoice-display";
-import { parseInvoiceToken } from "@/app/actions";
-import { InvoicePayload } from "@/lib/invoice";
+import { APP_NAME } from '@/lib/constants';
 
-export default function InvoicePage() {
-  const [payload, setPayload] = useState<InvoicePayload | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    const handleHashChange = () => {
-      const t = window.location.hash.slice(1);
-      if (!t) {
-        setPayload(null);
-        setToken(null);
-        setErr("No invoice token found.");
-        return;
-      }
-      setErr(null);
-      setToken(t);
-      parseInvoiceToken(t)
-        .then((res) => {
-          if ('error' in res) {
-            setErr(res.error);
-            setPayload(null);
-          } else {
-            setPayload(res.payload);
-          }
-        })
-        .catch(() => setErr("Failed to verify token."));
-    };
-    
-    // Initial load
-    handleHashChange();
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  const handleInvoiceUpdate = (newToken: string, newPayload: InvoicePayload) => {
-    // This function will be passed down to InvoiceDisplay to allow it to update the parent state
-    const url = new URL(window.location.href);
-    url.hash = '#' + newToken;
-    window.history.replaceState({}, '', url.toString());
-
-    setToken(newToken);
-    setPayload(newPayload);
-  };
-
+export default function InvoiceMissingPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
-      <div className="absolute top-8 left-8 text-2xl font-bold text-foreground">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+      <div className="absolute left-8 top-8 text-2xl font-bold text-foreground">
         <Link href="/">{APP_NAME}</Link>
       </div>
-
-      {err ? (
-        <p className="text-sm text-red-500">{err}</p>
-      ) : !payload || !token ? (
-        <p className="text-sm text-muted-foreground">Verifying invoice…</p>
-      ) : (
-        <InvoiceDisplay
-          initialInvoice={payload}
-          initialToken={token}
-          onInvoiceUpdate={handleInvoiceUpdate}
-        />
-      )}
+      <p className="text-sm text-muted-foreground">Invoice ID is missing from the URL.</p>
     </main>
   );
 }
