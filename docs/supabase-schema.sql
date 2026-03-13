@@ -1,13 +1,11 @@
 -- InvoiceLink MVP schema
 -- Run this in Supabase SQL editor.
 
-create extension if not exists pgcrypto;
-
 create schema if not exists private;
 
 create table if not exists private.invoices (
   id bigint generated always as identity primary key,
-  public_id text not null unique default encode(gen_random_bytes(12), 'hex'),
+  public_id text not null unique default md5(random()::text || clock_timestamp()::text),
   access_key_hash text not null,
   amount_fiat numeric not null check (amount_fiat > 0),
   currency text not null,
@@ -28,10 +26,10 @@ alter table private.invoices
 add column if not exists public_id text;
 
 alter table private.invoices
-alter column public_id set default encode(gen_random_bytes(12), 'hex');
+alter column public_id set default md5(random()::text || clock_timestamp()::text);
 
 update private.invoices
-set public_id = encode(gen_random_bytes(12), 'hex')
+set public_id = md5(random()::text || clock_timestamp()::text || id::text)
 where public_id is null or length(public_id) = 0;
 
 alter table private.invoices
