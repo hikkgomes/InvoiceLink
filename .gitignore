@@ -42,4 +42,7 @@ next-env.d.ts
 
 # firebase
 firebase-debug.log
-firestore-debug.log
+firestore-debug.logAGENTS.md
+REVIEWER.md
+AGENTS.md
+CLAUDE.md

@@ -7,12 +7,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { type InvoicePayload, satsToBtcString } from '@/lib/invoice';
+import { mergePolledPaymentStatus, type InvoiceStatus } from '@/lib/payment-status';
 import { refreshQuoteForToken, checkPaymentStatusFiatMatch } from '@/app/actions';
 import { QUOTE_EXPIRY_MS } from '@/lib/constants';
 import { Bitcoin, Clock, Copy, ExternalLink, Loader2, RefreshCw, CheckCircle2, CalendarOff } from 'lucide-react';
 import { Badge } from './ui/badge';
 
-type InvoiceStatus = 'pending' | 'detected' | 'confirmed' | 'quote_expired' | 'invoice_expired' | 'error' | 'refreshing';
+const PAYMENT_POLL_INTERVAL_MS = 10_000;
 
 function formatTime(ms: number) {
   if (ms < 0) return "00:00";
@@ -35,21 +36,17 @@ interface InvoiceDisplayProps {
     onInvoiceUpdate: (newToken: string, newPayload: InvoicePayload) => void;
 }
 
+function getStatusFromInvoice(invoice: InvoicePayload): InvoiceStatus {
+  if (Date.now() > invoice.invoiceExpiresAt) return 'invoice_expired';
+  if (Date.now() > invoice.quoteExpiresAt) return 'quote_expired';
+  return 'pending';
+}
+
 export function InvoiceDisplay({ initialInvoice, initialToken, onInvoiceUpdate }: InvoiceDisplayProps) {
   const [invoice, setInvoice] = useState(initialInvoice);
   const [token, setToken] = useState(initialToken);
-  const [timeLeft, setTimeLeft] = useState(invoice.exp - Date.now());
-  
-  const isInvoiceExpired = invoice.invoiceExpiresAt ? Date.now() > invoice.invoiceExpiresAt : false;
-  
-  const getInitialStatus = (): InvoiceStatus => {
-    if (isInvoiceExpired) return 'invoice_expired';
-    const isQuoteExpired = Date.now() > invoice.exp;
-    if (isQuoteExpired) return 'quote_expired';
-    return 'pending';
-  };
-
-  const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>(getInitialStatus());
+  const [timeLeft, setTimeLeft] = useState(invoice.quoteExpiresAt - Date.now());
+  const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>(() => getStatusFromInvoice(initialInvoice));
   const [txId, setTxId] = useState<string | null>(null);
 
   const { toast } = useToast();
@@ -66,37 +63,55 @@ export function InvoiceDisplay({ initialInvoice, initialToken, onInvoiceUpdate }
   useEffect(() => {
     setInvoice(initialInvoice);
     setToken(initialToken);
-    setTimeLeft(initialInvoice.exp - Date.now());
-    const isNewInvoiceExpired = initialInvoice.invoiceExpiresAt ? Date.now() > initialInvoice.invoiceExpiresAt : false;
-    const isNewQuoteExpired = Date.now() > initialInvoice.exp;
-    setPaymentStatus(isNewInvoiceExpired ? 'invoice_expired' : isNewQuoteExpired ? 'quote_expired' : 'pending');
+    setTxId(null);
+    setTimeLeft(initialInvoice.quoteExpiresAt - Date.now());
+    setPaymentStatus(getStatusFromInvoice(initialInvoice));
   }, [initialInvoice, initialToken]);
 
 
   // 1) Poll Blockchair fiat-match FIRST (so paid invoices never refresh)
   useEffect(() => {
-    if (paymentStatus !== 'pending') return;
-    const paymentCheckInterval = setInterval(async () => {
+    if (paymentStatus !== 'pending' && paymentStatus !== 'detected') return;
+
+    const poll = async () => {
       try {
+        if (Date.now() > invoice.invoiceExpiresAt) {
+          setPaymentStatus((current) => (current === 'confirmed' ? current : 'invoice_expired'));
+          return;
+        }
+
         const res = await checkPaymentStatusFiatMatch({
           address: invoice.address,
+          expectedSats: invoice.amountSats,
           usdAmount: invoice.amountUsd,
-          createdAt: invoice.iat,
-          invoiceExpiresAt: invoice.invoiceExpiresAt ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
+          createdAt: invoice.invoiceCreatedAt,
+          invoiceExpiresAt: invoice.invoiceExpiresAt,
         });
-        if (res.status === 'detected' || res.status === 'confirmed') {
-          setPaymentStatus(res.status);
-          setTxId((res as any).txid || null);
-          clearInterval(paymentCheckInterval);
-        }
+
+        setPaymentStatus((current) => mergePolledPaymentStatus(current, res.status));
+        if (res.txid) setTxId(res.txid);
       } catch (e) {
         console.error("Failed to poll for payment status:", e);
       }
-    }, 5000);
+    };
+
+    poll();
+    const paymentCheckInterval = setInterval(poll, PAYMENT_POLL_INTERVAL_MS);
     return () => clearInterval(paymentCheckInterval);
   }, [paymentStatus, invoice]);
 
-  // 2) Quote expiry timer and auto-refresh logic
+  // 2) Hard invoice expiry (reactive)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (Date.now() > invoice.invoiceExpiresAt) {
+        setPaymentStatus((current) => (current === 'confirmed' ? current : 'invoice_expired'));
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [invoice.invoiceExpiresAt]);
+
+  // 3) Quote expiry timer and auto-refresh logic
   useEffect(() => {
     // Only run the timer if the status is pending.
     if (paymentStatus !== 'pending') {
@@ -105,7 +120,14 @@ export function InvoiceDisplay({ initialInvoice, initialToken, onInvoiceUpdate }
     }
     
     const timer = setInterval(() => {
-      const remaining = invoice.exp - Date.now();
+      if (Date.now() > invoice.invoiceExpiresAt) {
+        setPaymentStatus('invoice_expired');
+        setTimeLeft(0);
+        clearInterval(timer);
+        return;
+      }
+
+      const remaining = invoice.quoteExpiresAt - Date.now();
       if (remaining <= 0) {
         setTimeLeft(0);
         setPaymentStatus('quote_expired');
@@ -116,22 +138,26 @@ export function InvoiceDisplay({ initialInvoice, initialToken, onInvoiceUpdate }
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [paymentStatus, invoice.exp]);
+  }, [paymentStatus, invoice.quoteExpiresAt, invoice.invoiceExpiresAt]);
 
-  // 3) Trigger auto-refresh when quote expires
+  // 4) Trigger auto-refresh when quote expires
   useEffect(() => {
       if (paymentStatus === 'quote_expired') {
+          if (Date.now() > invoice.invoiceExpiresAt) {
+            setPaymentStatus('invoice_expired');
+            return;
+          }
           setPaymentStatus('refreshing');
           refreshQuoteForToken(token).then(result => {
-              if (result?.token && result.payload) {
+              if ('token' in result) {
                   onInvoiceUpdate(result.token, result.payload);
-              } else if (result?.error) {
+              } else {
                   toast({ variant: 'destructive', title: 'Refresh Failed', description: result.error });
-                  setPaymentStatus('error');
+                  setPaymentStatus(result.code === 'expired' ? 'invoice_expired' : 'error');
               }
           });
       }
-  }, [paymentStatus, token, onInvoiceUpdate, toast]);
+  }, [paymentStatus, token, invoice.invoiceExpiresAt, onInvoiceUpdate, toast]);
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);

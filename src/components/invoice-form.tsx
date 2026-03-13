@@ -3,7 +3,7 @@
 import { useEffect, useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { createInvoice } from '@/app/actions';
+import { createInvoice, type CreateInvoiceState } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { validate as validateBtcAddress } from 'bitcoin-address-validation';
 
-const initialState = {
+const initialCreateInvoiceState: CreateInvoiceState = {
   error: null,
   details: {},
   token: null,
@@ -31,7 +31,7 @@ function SubmitButton() {
 }
 
 export function InvoiceForm() {
-  const [state, formAction] = useActionState(createInvoice, initialState);
+  const [state, formAction] = useActionState<CreateInvoiceState, FormData>(createInvoice, initialCreateInvoiceState);
   const router = useRouter();
   const { toast } = useToast();
 

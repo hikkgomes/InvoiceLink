@@ -25,7 +25,7 @@ export default function InvoicePage() {
       setToken(t);
       parseInvoiceToken(t)
         .then((res) => {
-          if (res?.error) {
+          if ('error' in res) {
             setErr(res.error);
             setPayload(null);
           } else {
