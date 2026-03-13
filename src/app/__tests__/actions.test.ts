@@ -16,10 +16,10 @@ vi.mock("@/lib/invoice", async (importActual) => {
 import {
   checkPaymentStatusFiatMatch,
   createInvoice,
-  initialCreateInvoiceState,
   parseInvoiceToken,
   refreshQuoteForToken,
 } from "@/app/actions";
+import type { CreateInvoiceState } from "@/app/actions";
 import type { InvoicePayload } from "@/lib/invoice";
 import * as invoice from "@/lib/invoice";
 
@@ -41,6 +41,12 @@ function makePayload(overrides: Partial<InvoicePayload> = {}): InvoicePayload {
     ...overrides,
   };
 }
+
+const initialCreateInvoiceState: CreateInvoiceState = {
+  error: null,
+  details: {},
+  token: null,
+};
 
 describe("actions", () => {
   beforeEach(() => {

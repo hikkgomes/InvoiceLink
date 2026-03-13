@@ -24,12 +24,6 @@ export type CreateInvoiceState = {
   token: string | null;
 };
 
-export const initialCreateInvoiceState: CreateInvoiceState = {
-  error: null,
-  details: {},
-  token: null,
-};
-
 export type ParseInvoiceTokenResult =
   | { payload: InvoicePayload }
   | { error: "Invoice expired" | "Invalid or tampered token" };
