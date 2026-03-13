@@ -17,7 +17,7 @@ import { validate as validateBtcAddress } from 'bitcoin-address-validation';
 const initialCreateInvoiceState: CreateInvoiceState = {
   error: null,
   details: {},
-  token: null,
+  invoiceUrl: null,
 };
 
 function SubmitButton() {
@@ -36,10 +36,10 @@ export function InvoiceForm() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (state.token) {
-      router.push(`/invoice#${state.token}`);
+    if (state.invoiceUrl) {
+      router.push(state.invoiceUrl);
     }
-    if (state.error && !state.token) {
+    if (state.error && !state.invoiceUrl) {
       toast({
         variant: 'destructive',
         title: 'Error Creating Invoice',
