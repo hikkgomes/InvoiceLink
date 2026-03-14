@@ -185,7 +185,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
     },
     detected: {
       text: 'Payment detected',
-      color: 'bg-sky-500',
+      color: 'bg-orange-500',
       icon: <CheckCircle2 className="h-4 w-4" />,
     },
     confirmed: {
@@ -200,7 +200,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
     },
     refreshing: {
       text: 'Refreshing quote...',
-      color: 'bg-sky-500',
+      color: 'bg-orange-500',
       icon: <RefreshCw className="h-4 w-4 animate-spin" />,
     },
     invoice_expired: {
@@ -218,8 +218,8 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
   const currentStatus = statusInfo[paymentStatus];
 
   return (
-    <Card className="w-full max-w-md border-border/60 bg-card/75 shadow-[0_30px_80px_rgba(2,8,23,0.35)]">
-      <CardHeader className="bg-secondary/40 p-5">
+    <Card className="w-full max-w-md border-accent/30 bg-card/75 shadow-[0_30px_80px_rgba(58,14,102,0.45),0_12px_42px_rgba(247,147,26,0.22)]">
+      <CardHeader className="border-b border-accent/20 bg-secondary/30 p-5">
         <div className="flex items-center justify-between gap-4">
           <div>
             <CardTitle className="text-lg">Bitcoin Invoice</CardTitle>
@@ -235,7 +235,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
       <CardContent className="space-y-6 p-6">
         <div className="flex justify-center">
           {qrDataUrl ? (
-            <div className="rounded-lg bg-white p-2">
+            <div className="rounded-lg border border-accent/30 bg-white p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrDataUrl} alt="Bitcoin QR code" width={220} height={220} />
             </div>
