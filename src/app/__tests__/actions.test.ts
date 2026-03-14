@@ -107,6 +107,31 @@ describe('actions', () => {
     expect(errorSpy).toHaveBeenCalledWith('createInvoice failed:', expect.any(Error));
   });
 
+  it('createInvoice masks store-layer details from user response', async () => {
+    const sensitive = 'supabase error host=db.internal code=42501';
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    vi.mocked(invoice.getBtcPrice)
+      .mockResolvedValueOnce(100_000)
+      .mockResolvedValueOnce(100_000);
+    vi.mocked(invoiceStore.createStoredInvoice).mockRejectedValue(new Error(sensitive));
+
+    const formData = new FormData();
+    formData.set('amount', '100');
+    formData.set('currency', 'USD');
+    formData.set('address', 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    formData.set('description', '');
+    formData.set('expiresIn', '7');
+
+    const result = await createInvoice(initialCreateInvoiceState, formData);
+
+    expect(result.invoiceUrl).toBeNull();
+    expect(result.error).toBe('Failed to create invoice. Please try again.');
+    expect(result.error).not.toContain('supabase');
+    expect(result.error).not.toContain('db.internal');
+    expect(errorSpy).toHaveBeenCalledWith('createInvoice failed:', expect.any(Error));
+  });
+
   it('loadInvoice returns Invalid invoice link for wrong id/key', async () => {
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(null);
 
@@ -178,6 +203,26 @@ describe('actions', () => {
 
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(payload);
     vi.mocked(invoice.getBtcPrice).mockRejectedValue(new Error(sensitive));
+
+    const result = await refreshQuote(payload.invoiceId, 'key');
+
+    expect(result).toEqual({
+      error: 'Failed to refresh quote. Please try again.',
+      code: 'refresh_failed',
+    });
+    expect(errorSpy).toHaveBeenCalledWith('refreshQuote failed:', expect.any(Error));
+  });
+
+  it('refreshQuote masks store-layer details from user response', async () => {
+    const payload = makePayload();
+    const sensitive = 'supabase update failed relation=private.invoices';
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(payload);
+    vi.mocked(invoice.getBtcPrice)
+      .mockResolvedValueOnce(100_000)
+      .mockResolvedValueOnce(100_000);
+    vi.mocked(invoiceStore.updateStoredInvoiceQuote).mockRejectedValue(new Error(sensitive));
 
     const result = await refreshQuote(payload.invoiceId, 'key');
 

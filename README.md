@@ -1,6 +1,6 @@
-# InvoiceLink
+# NodeInvoice
 
-InvoiceLink is a non-custodial Bitcoin invoicing app. Merchants create invoice links and payers send BTC directly to the merchant wallet.
+NodeInvoice is a non-custodial Bitcoin invoicing app. Merchants create invoice links and payers send BTC directly to the merchant wallet.
 
 ## Current Architecture
 

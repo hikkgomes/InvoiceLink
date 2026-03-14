@@ -9,6 +9,29 @@ const INVOICES_SCHEMA = "private";
 const INVOICES_TABLE = "invoices";
 const ACCESS_KEY_BYTES = 18;
 
+export type InvoiceStoreErrorCode =
+  | "invalid_numeric"
+  | "invalid_timestamp"
+  | "row_decode_failed"
+  | "insert_failed"
+  | "read_failed"
+  | "quote_update_failed"
+  | "status_update_failed";
+
+export class InvoiceStoreError extends Error {
+  readonly code: InvoiceStoreErrorCode;
+  readonly operation: string;
+  override readonly cause?: unknown;
+
+  constructor(code: InvoiceStoreErrorCode, operation: string, cause?: unknown) {
+    super(`Invoice store operation failed: ${operation}`);
+    this.name = "InvoiceStoreError";
+    this.code = code;
+    this.operation = operation;
+    this.cause = cause;
+  }
+}
+
 type InvoiceRow = {
   id: number;
   public_id: string;
@@ -53,10 +76,19 @@ function getSupabaseAdminClient() {
   return supabaseAdmin;
 }
 
+function asInvoiceStoreError(
+  code: InvoiceStoreErrorCode,
+  operation: string,
+  error: unknown,
+): InvoiceStoreError {
+  if (error instanceof InvoiceStoreError) return error;
+  return new InvoiceStoreError(code, operation, error);
+}
+
 function toNumber(value: number | string, field: string): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) {
-    throw new Error(`Invalid numeric value for ${field}`);
+    throw new InvoiceStoreError("invalid_numeric", `decode_${field}`);
   }
   return parsed;
 }
@@ -64,7 +96,7 @@ function toNumber(value: number | string, field: string): number {
 function toEpochMs(value: string, field: string): number {
   const parsed = new Date(value).getTime();
   if (!Number.isFinite(parsed)) {
-    throw new Error(`Invalid timestamp for ${field}`);
+    throw new InvoiceStoreError("invalid_timestamp", `decode_${field}`);
   }
   return parsed;
 }
@@ -77,20 +109,24 @@ function toPersistedStatus(value: string): PersistedInvoiceStatus {
 }
 
 function rowToInvoicePayload(row: InvoiceRow): InvoicePayload {
-  return {
-    invoiceId: row.public_id,
-    amountFiat: toNumber(row.amount_fiat, "amount_fiat"),
-    currency: row.currency,
-    description: row.description || "",
-    address: row.address,
-    amountSats: toNumber(row.amount_sats, "amount_sats"),
-    amountUsd: toNumber(row.amount_usd, "amount_usd"),
-    invoiceCreatedAt: toEpochMs(row.invoice_created_at, "invoice_created_at"),
-    quoteExpiresAt: toEpochMs(row.quote_expires_at, "quote_expires_at"),
-    invoiceExpiresAt: toEpochMs(row.invoice_expires_at, "invoice_expires_at"),
-    status: toPersistedStatus(row.status),
-    txId: row.txid,
-  };
+  try {
+    return {
+      invoiceId: row.public_id,
+      amountFiat: toNumber(row.amount_fiat, "amount_fiat"),
+      currency: row.currency,
+      description: row.description || "",
+      address: row.address,
+      amountSats: toNumber(row.amount_sats, "amount_sats"),
+      amountUsd: toNumber(row.amount_usd, "amount_usd"),
+      invoiceCreatedAt: toEpochMs(row.invoice_created_at, "invoice_created_at"),
+      quoteExpiresAt: toEpochMs(row.quote_expires_at, "quote_expires_at"),
+      invoiceExpiresAt: toEpochMs(row.invoice_expires_at, "invoice_expires_at"),
+      status: toPersistedStatus(row.status),
+      txId: row.txid,
+    };
+  } catch (error) {
+    throw asInvoiceStoreError("row_decode_failed", "row_to_payload", error);
+  }
 }
 
 export function generateInvoiceAccessKey(): string {
@@ -132,7 +168,7 @@ export async function createStoredInvoice(input: CreateStoredInvoiceInput): Prom
     .single<InvoiceRow>();
 
   if (error || !data) {
-    throw new Error(`Failed to create invoice row: ${error?.message || "missing data"}`);
+    throw new InvoiceStoreError("insert_failed", "create_invoice", error || "missing_data");
   }
 
   return {
@@ -154,7 +190,7 @@ export async function getStoredInvoiceByAccessKey(invoiceId: string, accessKey: 
     .maybeSingle<InvoiceRow>();
 
   if (error) {
-    throw new Error(`Failed to load invoice row: ${error.message}`);
+    throw new InvoiceStoreError("read_failed", "load_invoice", error);
   }
   if (!data) return null;
 
@@ -179,7 +215,7 @@ export async function updateStoredInvoiceQuote(
     .single<InvoiceRow>();
 
   if (error || !data) {
-    throw new Error(`Failed to update invoice quote: ${error?.message || "missing data"}`);
+    throw new InvoiceStoreError("quote_update_failed", "update_quote", error || "missing_data");
   }
 
   return rowToInvoicePayload(data);
@@ -203,7 +239,7 @@ export async function setStoredInvoiceStatus(
     .single<InvoiceRow>();
 
   if (error || !data) {
-    throw new Error(`Failed to update invoice status: ${error?.message || "missing data"}`);
+    throw new InvoiceStoreError("status_update_failed", "update_status", error || "missing_data");
   }
 
   return rowToInvoicePayload(data);

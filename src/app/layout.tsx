@@ -1,17 +1,36 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
 
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-});
+import { Toaster } from '@/components/ui/toaster';
+import { APP_NAME } from '@/lib/constants';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'InvoiceLink',
-  description: 'Create and share Bitcoin invoices easily.',
+  title: {
+    default: APP_NAME,
+    template: `%s | ${APP_NAME}`,
+  },
+  description: 'Non-custodial Bitcoin invoicing with fast quote generation and shareable links.',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+  },
 };
+
+const themeBootstrapScript = `
+(function () {
+  try {
+    var stored = window.localStorage.getItem('nodeinvoice-theme');
+    var root = document.documentElement;
+    if (stored === 'light') {
+      root.classList.remove('dark');
+    } else {
+      root.classList.add('dark');
+    }
+  } catch (error) {
+    document.documentElement.classList.add('dark');
+  }
+})();
+`;
 
 export default function RootLayout({
   children,
@@ -19,8 +38,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} font-body antialiased`}>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className="font-body antialiased">
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         {children}
         <Toaster />
       </body>

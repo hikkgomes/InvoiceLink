@@ -10,9 +10,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Inter', 'sans-serif'],
-        headline: ['Inter', 'sans-serif'],
-        code: ['monospace'],
+        body: ['Sora', 'Avenir Next', 'Segoe UI', 'sans-serif'],
+        headline: ['Sora', 'Avenir Next', 'Segoe UI', 'sans-serif'],
+        code: ['IBM Plex Mono', 'SFMono-Regular', 'Consolas', 'monospace'],
       },
       colors: {
         background: 'hsl(var(--background))',

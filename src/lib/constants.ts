@@ -1,4 +1,5 @@
-export const APP_NAME = "InvoiceLink";
+export const APP_NAME = "NodeInvoice";
+export const LEGAL_CONTACT_EMAIL = "legal@nodeinvoice.com";
 
 // 10 minutes (quote)
 export const QUOTE_EXPIRY_MS = 600 * 1000;

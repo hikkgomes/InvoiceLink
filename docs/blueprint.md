@@ -1,4 +1,4 @@
-# **App Name**: InvoiceLink
+# **App Name**: NodeInvoice
 
 ## Core Features:
 
@@ -20,10 +20,9 @@
 
 ## Style Guidelines:
 
-- Primary color: Deep Purple (#10051c).
-- Text color: White (#ffffff) to provide a clean and modern backdrop.
-- Accent color: Yellow-Orange (#f6b30b) for fades and gradients with purple tones.
-- Body and headline font: Inter sans-serif for a modern, neutral look.
-- Minimal, line-based icons for a clean and efficient user experience.
-- Mobile-first, responsive layout to ensure accessibility on all devices.
-- Subtle animations for loading states and user interactions to improve user experience.
+- Visual direction: Tech Noir, dark-first with optional light mode.
+- Core colors: Slate/ink surfaces with cyan signal accents and Bitcoin orange highlights.
+- Typography: Sora/Avenir-style geometric sans for body and headline, monospace for technical values.
+- Background treatment: grid overlays + soft radial glows instead of flat single-color pages.
+- Motion: restrained micro-animations for status, quote refresh, and loading only where meaningful.
+- Mobile-first responsive layout across landing, invoice, and legal pages.

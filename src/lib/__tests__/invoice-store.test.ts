@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { buildInvoiceUrl, generateInvoiceAccessKey, hashInvoiceAccessKey } from '@/lib/invoice-store';
+import { InvoiceStoreError, buildInvoiceUrl, generateInvoiceAccessKey, hashInvoiceAccessKey } from '@/lib/invoice-store';
 
 describe('invoice-store key utilities', () => {
   beforeEach(() => {
@@ -30,5 +30,17 @@ describe('invoice-store key utilities', () => {
     expect(one).not.toBe(two);
     expect(one.length).toBeGreaterThan(10);
     expect(one).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it('uses code-based internal errors without provider details in message', () => {
+    const cause = new Error('supabase: private schema denied');
+    const error = new InvoiceStoreError('read_failed', 'load_invoice', cause);
+
+    expect(error.name).toBe('InvoiceStoreError');
+    expect(error.code).toBe('read_failed');
+    expect(error.operation).toBe('load_invoice');
+    expect(error.message).toBe('Invoice store operation failed: load_invoice');
+    expect(error.message).not.toContain('supabase');
+    expect(error.cause).toBe(cause);
   });
 });

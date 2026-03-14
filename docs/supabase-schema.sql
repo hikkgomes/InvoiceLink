@@ -1,4 +1,4 @@
--- InvoiceLink MVP schema
+-- NodeInvoice MVP schema
 -- Run this in Supabase SQL editor.
 
 create schema if not exists private;

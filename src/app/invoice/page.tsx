@@ -1,14 +1,20 @@
-import Link from 'next/link';
-
-import { APP_NAME } from '@/lib/constants';
+import { SiteFooter } from '@/components/site-footer';
+import { SiteHeader } from '@/components/site-header';
 
 export default function InvoiceMissingPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="absolute left-8 top-8 text-2xl font-bold text-foreground">
-        <Link href="/">{APP_NAME}</Link>
-      </div>
-      <p className="text-sm text-muted-foreground">Invoice ID is missing from the URL.</p>
-    </main>
+    <div className="relative min-h-screen overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 tech-grid opacity-20" />
+      <SiteHeader />
+
+      <main className="relative mx-auto flex min-h-[calc(100vh-172px)] w-full max-w-6xl items-center justify-center px-4 py-10 sm:px-6">
+        <div className="w-full max-w-xl rounded-xl border border-border/60 bg-card/70 p-6 text-center">
+          <h1 className="font-headline text-2xl font-semibold">Missing invoice ID</h1>
+          <p className="mt-2 text-sm text-muted-foreground">The invoice URL is incomplete. Ask the merchant to resend the full link.</p>
+        </div>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }

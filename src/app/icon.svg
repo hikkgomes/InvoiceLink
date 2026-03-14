@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">NodeInvoice Icon</title>
+  <desc id="desc">A node network glyph with a Bitcoin coin badge.</desc>
+  <defs>
+    <linearGradient id="bg" x1="24" y1="24" x2="232" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a" />
+      <stop offset="1" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="accent" x1="40" y1="34" x2="156" y2="154" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22d3ee" />
+      <stop offset="1" stop-color="#38bdf8" />
+    </linearGradient>
+  </defs>
+
+  <rect x="10" y="10" width="236" height="236" rx="56" fill="url(#bg)" />
+
+  <g stroke="url(#accent)" stroke-width="8" stroke-linecap="round" opacity="0.95">
+    <path d="M60 72L108 100" />
+    <path d="M108 100L72 150" />
+    <path d="M108 100L154 76" />
+    <path d="M108 100L144 146" />
+    <path d="M72 150L144 146" />
+    <path d="M154 76L144 146" />
+  </g>
+
+  <g fill="#e2f8ff">
+    <circle cx="60" cy="72" r="10" />
+    <circle cx="108" cy="100" r="11" />
+    <circle cx="72" cy="150" r="10" />
+    <circle cx="154" cy="76" r="10" />
+    <circle cx="144" cy="146" r="10" />
+  </g>
+
+  <g>
+    <circle cx="182" cy="182" r="54" fill="#f7931a" />
+    <text x="182" y="197" text-anchor="middle" font-family="Avenir Next, Arial Black, sans-serif" font-size="82" font-weight="700" fill="#ffffff">B</text>
+    <rect x="164" y="146" width="7" height="72" rx="3.5" fill="#ffffff" />
+    <rect x="193" y="146" width="7" height="72" rx="3.5" fill="#ffffff" />
+  </g>
+</svg>
