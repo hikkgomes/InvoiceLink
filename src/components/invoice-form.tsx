@@ -24,7 +24,7 @@ const initialCreateInvoiceState: CreateInvoiceState = {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
+    <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={pending}>
       {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
       Generate Invoice Link
     </Button>
@@ -73,8 +73,8 @@ export function InvoiceForm() {
         formAction(formData);
       }}
     >
-      <Card className="w-full border border-border/60 bg-card/70 shadow-none">
-        <CardHeader>
+      <Card className="w-full border border-accent/30 bg-card/70 shadow-none">
+        <CardHeader className="border-b border-accent/20 bg-secondary/30">
           <CardTitle>Create an invoice</CardTitle>
           <CardDescription>Instant, non-custodial request link for your client.</CardDescription>
         </CardHeader>

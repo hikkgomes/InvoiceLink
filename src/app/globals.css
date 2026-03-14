@@ -4,58 +4,58 @@
 
 @layer base {
   :root {
-    --background: 210 29% 97%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 189 100% 38%;
+    --background: 272 45% 97%;
+    --foreground: 262 33% 14%;
+    --card: 272 52% 99%;
+    --card-foreground: 262 33% 14%;
+    --popover: 272 52% 99%;
+    --popover-foreground: 262 33% 14%;
+    --primary: 270 76% 54%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 30% 94%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 23% 92%;
-    --muted-foreground: 217 16% 46%;
-    --accent: 34 96% 52%;
-    --accent-foreground: 222 47% 11%;
+    --secondary: 272 32% 93%;
+    --secondary-foreground: 262 33% 14%;
+    --muted: 272 27% 91%;
+    --muted-foreground: 265 15% 40%;
+    --accent: 31 98% 53%;
+    --accent-foreground: 22 45% 12%;
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 217 23% 86%;
-    --input: 217 23% 86%;
-    --ring: 189 100% 38%;
-    --chart-1: 189 100% 38%;
-    --chart-2: 34 96% 52%;
-    --chart-3: 220 72% 55%;
-    --chart-4: 157 72% 44%;
-    --chart-5: 271 76% 58%;
+    --border: 268 25% 84%;
+    --input: 268 25% 84%;
+    --ring: 270 76% 54%;
+    --chart-1: 270 76% 54%;
+    --chart-2: 31 98% 53%;
+    --chart-3: 287 70% 58%;
+    --chart-4: 24 90% 55%;
+    --chart-5: 252 65% 58%;
     --radius: 0.75rem;
   }
 
   .dark {
-    --background: 221 38% 8%;
-    --foreground: 210 40% 98%;
-    --card: 222 36% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 36% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 188 96% 56%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 222 28% 18%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 222 28% 18%;
-    --muted-foreground: 215 20% 70%;
-    --accent: 34 100% 57%;
-    --accent-foreground: 222 47% 11%;
+    --background: 262 47% 8%;
+    --foreground: 278 40% 96%;
+    --card: 262 42% 11%;
+    --card-foreground: 278 40% 96%;
+    --popover: 262 42% 11%;
+    --popover-foreground: 278 40% 96%;
+    --primary: 271 90% 70%;
+    --primary-foreground: 258 43% 12%;
+    --secondary: 263 30% 18%;
+    --secondary-foreground: 278 40% 96%;
+    --muted: 263 30% 18%;
+    --muted-foreground: 271 18% 71%;
+    --accent: 31 100% 55%;
+    --accent-foreground: 22 60% 12%;
     --destructive: 0 72% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 22% 24%;
-    --input: 220 22% 24%;
-    --ring: 188 96% 56%;
-    --chart-1: 188 96% 56%;
-    --chart-2: 34 100% 57%;
-    --chart-3: 278 92% 66%;
-    --chart-4: 158 74% 48%;
-    --chart-5: 351 95% 68%;
+    --border: 264 24% 26%;
+    --input: 264 24% 26%;
+    --ring: 271 90% 70%;
+    --chart-1: 271 90% 70%;
+    --chart-2: 31 100% 55%;
+    --chart-3: 287 84% 72%;
+    --chart-4: 20 95% 63%;
+    --chart-5: 251 86% 73%;
   }
 
   * {
@@ -65,9 +65,10 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(circle at 10% -10%, rgba(34, 211, 238, 0.16), transparent 32%),
-      radial-gradient(circle at 90% -20%, rgba(251, 146, 60, 0.15), transparent 34%),
-      radial-gradient(circle at 50% 120%, rgba(59, 130, 246, 0.08), transparent 28%);
+      radial-gradient(circle at 8% -12%, rgba(168, 85, 247, 0.27), transparent 34%),
+      radial-gradient(circle at 92% -18%, rgba(251, 146, 60, 0.34), transparent 36%),
+      radial-gradient(circle at 24% 102%, rgba(251, 146, 60, 0.2), transparent 33%),
+      radial-gradient(circle at 50% 118%, rgba(126, 34, 206, 0.16), transparent 30%);
     min-height: 100vh;
   }
 }
@@ -75,17 +76,17 @@
 @layer utilities {
   .tech-grid {
     background-image:
-      linear-gradient(to right, rgba(148, 163, 184, 0.14) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(148, 163, 184, 0.14) 1px, transparent 1px);
+      linear-gradient(to right, rgba(167, 139, 250, 0.16) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(167, 139, 250, 0.16) 1px, transparent 1px);
     background-size: 44px 44px;
   }
 
   .glass-panel {
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.56));
+    background: rgba(255, 255, 255, 0.78);
     backdrop-filter: blur(18px);
   }
 
   .dark .glass-panel {
-    background: linear-gradient(160deg, rgba(15, 23, 42, 0.74), rgba(15, 23, 42, 0.52));
+    background: rgba(35, 18, 61, 0.76);
   }
 }

@@ -3,12 +3,12 @@
   <desc id="desc">A node network glyph with a Bitcoin coin badge.</desc>
   <defs>
     <linearGradient id="bg" x1="24" y1="24" x2="232" y2="232" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0f172a" />
-      <stop offset="1" stop-color="#1e293b" />
+      <stop offset="0" stop-color="#160828" />
+      <stop offset="1" stop-color="#2a1042" />
     </linearGradient>
     <linearGradient id="accent" x1="40" y1="34" x2="156" y2="154" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#22d3ee" />
-      <stop offset="1" stop-color="#38bdf8" />
+      <stop offset="0" stop-color="#d8b4fe" />
+      <stop offset="1" stop-color="#a855f7" />
     </linearGradient>
   </defs>
 
@@ -23,7 +23,7 @@
     <path d="M154 76L144 146" />
   </g>
 
-  <g fill="#e2f8ff">
+  <g fill="#f5e9ff">
     <circle cx="60" cy="72" r="10" />
     <circle cx="108" cy="100" r="11" />
     <circle cx="72" cy="150" r="10" />
