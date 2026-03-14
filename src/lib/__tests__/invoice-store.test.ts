@@ -13,6 +13,12 @@ describe('invoice-store key utilities', () => {
     );
   });
 
+  it('adds locale to invoice URL when not default', () => {
+    expect(buildInvoiceUrl('a9b8c7d6e5f4a3b2c1d0e9f8', 'quy3GDNB', 'es')).toBe(
+      '/invoice/a9b8c7d6e5f4a3b2c1d0e9f8?k=quy3GDNB&lang=es',
+    );
+  });
+
   it('hashes the same key deterministically and different keys differently', () => {
     const first = hashInvoiceAccessKey('same-key');
     const second = hashInvoiceAccessKey('same-key');

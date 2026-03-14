@@ -21,9 +21,14 @@ function applyTheme(theme: ThemeMode) {
 
 interface ThemeToggleProps {
   compact?: boolean;
+  labels?: {
+    light: string;
+    dark: string;
+    aria: string;
+  };
 }
 
-export function ThemeToggle({ compact = false }: ThemeToggleProps) {
+export function ThemeToggle({ compact = false, labels }: ThemeToggleProps) {
   const [mode, setMode] = useState<ThemeMode>('dark');
   const [ready, setReady] = useState(false);
 
@@ -50,6 +55,10 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
     }
   };
 
+  const lightLabel = labels?.light ?? 'Light';
+  const darkLabel = labels?.dark ?? 'Dark';
+  const ariaLabel = labels?.aria ?? 'Toggle theme';
+
   return (
     <Button
       type="button"
@@ -61,10 +70,14 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
       )}
       onClick={toggle}
       disabled={!ready}
-      aria-label="Toggle theme"
+      aria-label={ariaLabel}
     >
       {mode === 'dark' ? <SunMedium className={cn('h-4 w-4', compact ? '' : 'mr-2')} /> : <MoonStar className={cn('h-4 w-4', compact ? '' : 'mr-2')} />}
-      {compact ? <span className="text-[11px] uppercase tracking-[0.12em]">{mode === 'dark' ? 'Light' : 'Dark'}</span> : <>{mode === 'dark' ? 'Light' : 'Dark'}</>}
+      {compact ? (
+        <span className="text-[11px] uppercase tracking-[0.12em]">{mode === 'dark' ? lightLabel : darkLabel}</span>
+      ) : (
+        <>{mode === 'dark' ? lightLabel : darkLabel}</>
+      )}
     </Button>
   );
 }

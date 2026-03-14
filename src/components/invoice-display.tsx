@@ -11,10 +11,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { QUOTE_EXPIRY_MS } from '@/lib/constants';
+import { type I18nMessages, type Locale } from '@/lib/i18n';
 import { type InvoicePayload, satsToBtcString } from '@/lib/invoice';
 import { mergePolledPaymentStatus, type InvoiceStatus } from '@/lib/payment-status';
 
 const PAYMENT_POLL_INTERVAL_MS = 10_000;
+
+type CopyItemKey = 'btcAmount' | 'address' | 'paymentLink';
 
 function formatTime(ms: number) {
   if (ms < 0) return '00:00';
@@ -26,9 +29,9 @@ function formatTime(ms: number) {
   return `${minutes}:${seconds}`;
 }
 
-function formatExpiryDate(timestamp: number) {
+function formatExpiryDate(timestamp: number, locale: Locale) {
   const date = new Date(timestamp);
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -38,6 +41,8 @@ function formatExpiryDate(timestamp: number) {
 interface InvoiceDisplayProps {
   initialInvoice: InvoicePayload;
   accessKey: string;
+  locale: Locale;
+  messages: I18nMessages['invoiceDisplay'];
 }
 
 function getStatusFromInvoice(invoice: InvoicePayload): InvoiceStatus {
@@ -50,7 +55,7 @@ function getStatusFromInvoice(invoice: InvoicePayload): InvoiceStatus {
   return 'pending';
 }
 
-export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProps) {
+export function InvoiceDisplay({ initialInvoice, accessKey, locale, messages }: InvoiceDisplayProps) {
   const [invoice, setInvoice] = useState(initialInvoice);
   const [timeLeft, setTimeLeft] = useState(initialInvoice.quoteExpiresAt - Date.now());
   const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>(() => getStatusFromInvoice(initialInvoice));
@@ -156,60 +161,71 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
           setTimeLeft(result.payload.quoteExpiresAt - Date.now());
           setPaymentStatus(getStatusFromInvoice(result.payload));
         } else {
-          toast({ variant: 'destructive', title: 'Refresh failed', description: result.error });
+          const refreshMessage =
+            result.code === 'expired'
+              ? messages.status.invoiceExpired
+              : result.code === 'invalid'
+                ? messages.toasts.refreshFailedDescription
+                : messages.toasts.refreshFailedDescription;
+          toast({ variant: 'destructive', title: messages.toasts.refreshFailedTitle, description: refreshMessage });
           setPaymentStatus(result.code === 'expired' ? 'invoice_expired' : 'error');
         }
       } catch {
-        toast({ variant: 'destructive', title: 'Refresh failed', description: 'Could not refresh quote. Please try again.' });
+        toast({
+          variant: 'destructive',
+          title: messages.toasts.refreshFailedTitle,
+          description: messages.toasts.refreshFailedDescription,
+        });
         setPaymentStatus('error');
       }
     };
 
     runRefresh();
-  }, [paymentStatus, invoice, accessKey, toast]);
+  }, [paymentStatus, invoice, accessKey, toast, messages]);
 
-  const handleCopy = async (text: string, type: string) => {
+  const handleCopy = async (text: string, itemKey: CopyItemKey) => {
+    const itemLabel = messages.copyItems[itemKey];
     try {
       await navigator.clipboard.writeText(text);
-      toast({ description: `${type} copied to clipboard.` });
+      toast({ description: messages.toasts.copied.replace('{item}', itemLabel) });
     } catch {
-      toast({ variant: 'destructive', description: `Failed to copy ${type.toLowerCase()}.` });
+      toast({ variant: 'destructive', description: messages.toasts.copyFailed.replace('{item}', itemLabel) });
     }
   };
 
   const statusInfo = {
     pending: {
-      text: 'Waiting for payment',
+      text: messages.status.pending,
       color: 'bg-amber-500/80',
       icon: <Loader2 className="h-4 w-4 animate-spin" />,
     },
     detected: {
-      text: 'Payment detected',
+      text: messages.status.detected,
       color: 'bg-orange-500',
       icon: <CheckCircle2 className="h-4 w-4" />,
     },
     confirmed: {
-      text: 'Payment confirmed',
+      text: messages.status.confirmed,
       color: 'bg-emerald-500',
       icon: <CheckCircle2 className="h-4 w-4" />,
     },
     quote_expired: {
-      text: 'Quote expired',
+      text: messages.status.quoteExpired,
       color: 'bg-rose-500',
       icon: <Clock className="h-4 w-4" />,
     },
     refreshing: {
-      text: 'Refreshing quote...',
+      text: messages.status.refreshing,
       color: 'bg-orange-500',
       icon: <RefreshCw className="h-4 w-4 animate-spin" />,
     },
     invoice_expired: {
-      text: 'Invoice expired',
+      text: messages.status.invoiceExpired,
       color: 'bg-destructive',
       icon: <CalendarOff className="h-4 w-4" />,
     },
     error: {
-      text: 'Status check error',
+      text: messages.status.error,
       color: 'bg-zinc-500',
       icon: <Clock className="h-4 w-4" />,
     },
@@ -222,7 +238,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
       <CardHeader className="border-b border-accent/20 bg-secondary/30 p-5">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-lg">Bitcoin Invoice</CardTitle>
+            <CardTitle className="text-lg">{messages.title}</CardTitle>
             {invoice.description ? <CardDescription>{invoice.description}</CardDescription> : null}
           </div>
           <Badge variant="outline" className={`border-0 text-white ${currentStatus.color}`}>
@@ -247,8 +263,8 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
         </div>
 
         <div className="space-y-4 text-center">
-          <div className="cursor-pointer" onClick={() => handleCopy(satsToBtcString(invoice.amountSats), 'BTC amount')}>
-            <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Amount</p>
+          <div className="cursor-pointer" onClick={() => handleCopy(satsToBtcString(invoice.amountSats), 'btcAmount')}>
+            <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{messages.amountLabel}</p>
             <p className="mt-1 flex items-center justify-center gap-2 font-code text-2xl font-semibold tracking-tight">
               <Bitcoin className="h-6 w-6 text-accent" /> {satsToBtcString(invoice.amountSats)}
             </p>
@@ -257,8 +273,11 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
             </p>
           </div>
 
-          <div className="cursor-pointer break-all rounded-md border border-border/60 px-3 py-2 text-xs text-muted-foreground" onClick={() => handleCopy(invoice.address, 'Address')}>
-            <p className="uppercase tracking-[0.12em]">Send to</p>
+          <div
+            className="cursor-pointer break-all rounded-md border border-border/60 px-3 py-2 text-xs text-muted-foreground"
+            onClick={() => handleCopy(invoice.address, 'address')}
+          >
+            <p className="uppercase tracking-[0.12em]">{messages.sendToLabel}</p>
             <p className="mt-1 font-code text-sm text-foreground">{invoice.address}</p>
           </div>
         </div>
@@ -267,7 +286,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
           <div>
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="h-4 w-4" /> Quote expires in
+                <Clock className="h-4 w-4" /> {messages.quoteExpiresLabel}
               </span>
               <span className="font-code font-medium">{formatTime(timeLeft)}</span>
             </div>
@@ -275,14 +294,16 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
           </div>
         ) : null}
 
-        <div className="text-center text-xs text-muted-foreground">Invoice valid until {formatExpiryDate(invoice.invoiceExpiresAt)}</div>
+        <div className="text-center text-xs text-muted-foreground">
+          {messages.invoiceValidUntil} {formatExpiryDate(invoice.invoiceExpiresAt, locale)}
+        </div>
       </CardContent>
 
       <CardFooter className="flex flex-col gap-2 bg-secondary/40 p-4">
         {paymentStatus === 'pending' ? (
           <Button className="w-full" asChild>
             <a href={bip21Link}>
-              <Copy className="mr-2 h-4 w-4" /> Open in wallet
+              <Copy className="mr-2 h-4 w-4" /> {messages.actions.openWallet}
             </a>
           </Button>
         ) : null}
@@ -290,14 +311,14 @@ export function InvoiceDisplay({ initialInvoice, accessKey }: InvoiceDisplayProp
         {(paymentStatus === 'detected' || paymentStatus === 'confirmed') && txId ? (
           <Button variant="secondary" className="w-full" asChild>
             <a href={`https://mempool.space/tx/${txId}`} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="mr-2 h-4 w-4" /> View transaction
+              <ExternalLink className="mr-2 h-4 w-4" /> {messages.actions.viewTransaction}
             </a>
           </Button>
         ) : null}
 
         {paymentStatus === 'pending' ? (
-          <Button variant="ghost" className="w-full" onClick={() => handleCopy(bip21Link, 'Payment link')}>
-            <Copy className="mr-2 h-4 w-4" /> Copy payment link
+          <Button variant="ghost" className="w-full" onClick={() => handleCopy(bip21Link, 'paymentLink')}>
+            <Copy className="mr-2 h-4 w-4" /> {messages.actions.copyPaymentLink}
           </Button>
         ) : null}
       </CardFooter>

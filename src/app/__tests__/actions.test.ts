@@ -86,6 +86,30 @@ describe('actions', () => {
     expect(invoiceStore.createStoredInvoice).toHaveBeenCalledTimes(1);
   });
 
+  it('createInvoice forwards locale when provided', async () => {
+    vi.mocked(invoice.getBtcPrice)
+      .mockResolvedValueOnce(100_000)
+      .mockResolvedValueOnce(100_000);
+    vi.mocked(invoiceStore.createStoredInvoice).mockResolvedValue({
+      invoice: makePayload({ invoiceId: 'a9b8c7d6e5f4a3b2c1d0e9f8' }),
+      accessKey: 'quy3GDNB',
+    });
+    vi.mocked(invoiceStore.buildInvoiceUrl).mockReturnValue('/invoice/a9b8c7d6e5f4a3b2c1d0e9f8?k=quy3GDNB&lang=es');
+
+    const formData = new FormData();
+    formData.set('amount', '100');
+    formData.set('currency', 'USD');
+    formData.set('address', 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    formData.set('description', 'Test');
+    formData.set('expiresIn', '7');
+    formData.set('lang', 'es');
+
+    const result = await createInvoice(initialCreateInvoiceState, formData);
+
+    expect(result.invoiceUrl).toBe('/invoice/a9b8c7d6e5f4a3b2c1d0e9f8?k=quy3GDNB&lang=es');
+    expect(invoiceStore.buildInvoiceUrl).toHaveBeenCalledWith('a9b8c7d6e5f4a3b2c1d0e9f8', 'quy3GDNB', 'es');
+  });
+
   it('createInvoice masks upstream error details from user response', async () => {
     const sensitive = 'fetch failed https://api.coingecko.com status=503';
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

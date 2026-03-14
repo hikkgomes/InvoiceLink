@@ -20,6 +20,7 @@ import {
   setStoredInvoiceStatus,
   updateStoredInvoiceQuote,
 } from '@/lib/invoice-store';
+import { resolveLocale } from '@/lib/i18n';
 
 type InvoiceField = 'amount' | 'currency' | 'address' | 'description' | 'expiresIn';
 type InvoiceFieldErrors = Partial<Record<InvoiceField, string[]>>;
@@ -44,6 +45,7 @@ const invoiceSchema = z.object({
   address: z.string().min(26).refine((v) => validateBtcAddress(v), { message: 'Invalid Bitcoin address' }),
   description: z.string().max(100).optional(),
   expiresIn: z.coerce.number().int().positive().optional(),
+  lang: z.string().optional(),
 });
 
 function parseInvoiceId(rawInvoiceId: number | string): string | null {
@@ -106,6 +108,7 @@ export async function createInvoice(
     address: formData.get('address'),
     description: formData.get('description'),
     expiresIn: formData.get('expiresIn') || undefined,
+    lang: formData.get('lang') || undefined,
   });
 
   if (!parsed.success) {
@@ -116,7 +119,8 @@ export async function createInvoice(
     };
   }
 
-  const { amount, currency, address, description, expiresIn } = parsed.data;
+  const { amount, currency, address, description, expiresIn, lang } = parsed.data;
+  const locale = resolveLocale(lang);
 
   try {
     const nowMs = Date.now();
@@ -143,7 +147,7 @@ export async function createInvoice(
     return {
       error: null,
       details: {},
-      invoiceUrl: buildInvoiceUrl(invoice.invoiceId, accessKey),
+      invoiceUrl: buildInvoiceUrl(invoice.invoiceId, accessKey, locale),
     };
   } catch (error) {
     console.error('createInvoice failed:', error);
