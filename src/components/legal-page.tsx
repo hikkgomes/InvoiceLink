@@ -21,7 +21,7 @@ export function LegalPage({ locale, footerMessages, updatedPrefix, title, intro,
   return (
     <div className="relative min-h-screen overflow-hidden">
       <div className="pointer-events-none absolute inset-0 tech-grid opacity-20" />
-      <SiteHeader locale={locale} />
+      <SiteHeader locale={locale} languageLabels={footerMessages.language} />
 
       <main className="relative mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
         <article className="glass-panel rounded-2xl border border-border/60 p-6 sm:p-8">

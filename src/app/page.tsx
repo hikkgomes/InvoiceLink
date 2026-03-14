@@ -17,7 +17,7 @@ export default async function Home({ searchParams }: HomePageProps) {
   return (
     <div className="relative min-h-screen overflow-hidden">
       <div className="pointer-events-none absolute inset-0 tech-grid opacity-20" />
-      <SiteHeader locale={locale} />
+      <SiteHeader locale={locale} languageLabels={messages.footer.language} />
 
       <main className="relative mx-auto w-full max-w-6xl px-4 pb-16 pt-10 sm:px-6 sm:pt-14">
         <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">

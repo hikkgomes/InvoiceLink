@@ -85,11 +85,11 @@ export function InvoiceForm({ locale, messages }: InvoiceFormProps) {
     >
       <input type="hidden" name="lang" value={locale} />
       <Card className="w-full border border-accent/30 bg-card/70 shadow-none">
-        <CardHeader className="border-b border-accent/20 bg-secondary/30">
+        <CardHeader className="border-b border-accent/20 bg-secondary/30 pb-4">
           <CardTitle>{messages.title}</CardTitle>
           <CardDescription>{messages.description}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-4">
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-2">
               <Label htmlFor="amount">{messages.amountLabel}</Label>

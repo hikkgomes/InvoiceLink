@@ -54,7 +54,7 @@ export default function InvoicePage() {
   return (
     <div className="relative min-h-screen overflow-hidden">
       <div className="pointer-events-none absolute inset-0 tech-grid opacity-20" />
-      <SiteHeader locale={locale} />
+      <SiteHeader locale={locale} languageLabels={messages.footer.language} />
 
       <main className="relative mx-auto flex min-h-[calc(100vh-172px)] w-full max-w-6xl flex-col items-center justify-center px-4 py-10 sm:px-6">
         {err ? (

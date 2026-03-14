@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-import { LanguageSwitcher } from '@/components/language-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LEGAL_CONTACT_EMAIL } from '@/lib/constants';
 import { type Locale, type I18nMessages, withLocaleQuery } from '@/lib/i18n';
@@ -42,17 +41,14 @@ export function SiteFooter({ locale, messages }: SiteFooterProps) {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-2">
-            <LanguageSwitcher locale={locale} labels={messages.language} />
-            <ThemeToggle
-              compact
-              labels={{
-                light: messages.theme.light,
-                dark: messages.theme.dark,
-                aria: messages.theme.toggleAria,
-              }}
-            />
-          </div>
+          <ThemeToggle
+            compact
+            labels={{
+              light: messages.theme.light,
+              dark: messages.theme.dark,
+              aria: messages.theme.toggleAria,
+            }}
+          />
         </div>
       </div>
     </footer>
