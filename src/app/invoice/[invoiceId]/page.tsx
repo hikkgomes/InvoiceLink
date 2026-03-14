@@ -7,7 +7,14 @@ import { loadInvoice } from '@/app/actions';
 import { InvoiceDisplay } from '@/components/invoice-display';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
+import { getMessages, resolveLocale } from '@/lib/i18n';
 import type { InvoicePayload } from '@/lib/invoice';
+
+function mapLoadError(error: string, invalidLinkText: string, expiredText: string): string {
+  if (error === 'Invoice expired') return expiredText;
+  if (error === 'Invalid invoice link') return invalidLinkText;
+  return invalidLinkText;
+}
 
 export default function InvoicePage() {
   const params = useParams<{ invoiceId: string }>();
@@ -18,11 +25,13 @@ export default function InvoicePage() {
 
   const invoiceId = params.invoiceId;
   const accessKey = searchParams.get('k') || '';
+  const locale = resolveLocale(searchParams.get('lang'));
+  const messages = getMessages(locale);
 
   useEffect(() => {
     if (!invoiceId || !accessKey) {
       setPayload(null);
-      setErr('Invalid invoice link');
+      setErr(messages.invoicePage.errors.invalidLink);
       return;
     }
 
@@ -31,21 +40,21 @@ export default function InvoicePage() {
       .then((res) => {
         if ('error' in res) {
           setPayload(null);
-          setErr(res.error);
+          setErr(mapLoadError(res.error, messages.invoicePage.errors.invalidLink, messages.invoicePage.errors.expired));
         } else {
           setPayload(res.payload);
         }
       })
       .catch(() => {
         setPayload(null);
-        setErr('Failed to load invoice');
+        setErr(messages.invoicePage.errors.loadFailed);
       });
-  }, [invoiceId, accessKey]);
+  }, [invoiceId, accessKey, messages]);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
       <div className="pointer-events-none absolute inset-0 tech-grid opacity-20" />
-      <SiteHeader />
+      <SiteHeader locale={locale} />
 
       <main className="relative mx-auto flex min-h-[calc(100vh-172px)] w-full max-w-6xl flex-col items-center justify-center px-4 py-10 sm:px-6">
         {err ? (
@@ -54,14 +63,19 @@ export default function InvoicePage() {
           </div>
         ) : !payload ? (
           <div className="w-full max-w-lg rounded-xl border border-border/60 bg-card/70 p-5 text-center text-sm text-muted-foreground">
-            Loading invoice...
+            {messages.invoicePage.loading}
           </div>
         ) : (
-          <InvoiceDisplay initialInvoice={payload} accessKey={accessKey} />
+          <InvoiceDisplay
+            initialInvoice={payload}
+            accessKey={accessKey}
+            locale={locale}
+            messages={messages.invoiceDisplay}
+          />
         )}
       </main>
 
-      <SiteFooter />
+      <SiteFooter locale={locale} messages={messages.footer} />
     </div>
   );
 }

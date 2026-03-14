@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { getInvoiceKeyPepper, getSupabaseServerEnv } from "@/lib/env.server";
+import { DEFAULT_LOCALE, resolveLocale } from "@/lib/i18n";
 import { type InvoicePayload, type PersistedInvoiceStatus } from "@/lib/invoice";
 
 const INVOICES_SCHEMA = "private";
@@ -137,9 +138,16 @@ export function hashInvoiceAccessKey(accessKey: string): string {
   return createHash("sha256").update(`${accessKey}:${getInvoiceKeyPepper()}`).digest("hex");
 }
 
-export function buildInvoiceUrl(invoiceId: string, accessKey: string): string {
-  const key = encodeURIComponent(accessKey);
-  return `/invoice/${invoiceId}?k=${key}`;
+export function buildInvoiceUrl(invoiceId: string, accessKey: string, rawLocale?: string | null): string {
+  const params = new URLSearchParams({ k: accessKey });
+  if (rawLocale) {
+    const locale = resolveLocale(rawLocale);
+    if (locale !== DEFAULT_LOCALE) {
+      params.set("lang", locale);
+    }
+  }
+
+  return `/invoice/${invoiceId}?${params.toString()}`;
 }
 
 export async function createStoredInvoice(input: CreateStoredInvoiceInput): Promise<{ invoice: InvoicePayload; accessKey: string }> {

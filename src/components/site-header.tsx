@@ -2,12 +2,19 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 import { APP_NAME } from '@/lib/constants';
+import { type Locale, withLocaleQuery } from '@/lib/i18n';
 
-export function SiteHeader() {
+interface SiteHeaderProps {
+  locale: Locale;
+}
+
+export function SiteHeader({ locale }: SiteHeaderProps) {
+  const homeHref = withLocaleQuery('/', locale);
+
   return (
     <header className="sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-6xl items-center px-4 py-4 sm:px-6">
-        <Link href="/" className="inline-flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <Link href={homeHref} className="inline-flex items-center gap-2 text-lg font-semibold tracking-tight">
           <Image
             src="/icon.svg"
             alt=""
