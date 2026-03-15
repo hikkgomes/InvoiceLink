@@ -141,22 +141,22 @@ export async function createInvoice(
 
     const nowMs = Date.now();
     const invoiceExpiresAt = nowMs + (expiresIn ?? 7) * 24 * 60 * 60 * 1000;
-    const usdPrice = await getBtcPrice('USD');
-
     let amountSats: number;
+    let amountUsd: number;
     let quoteExpiresAt: number;
 
     if (currency === 'BTC') {
+      const usdPrice = await getBtcPrice('USD');
       amountSats = sats(amount);
+      amountUsd = btcFromSats(amountSats) * usdPrice;
       quoteExpiresAt = invoiceExpiresAt;
     } else {
-      const price = await getBtcPrice(currency);
+      const [usdPrice, price] = await Promise.all([getBtcPrice('USD'), getBtcPrice(currency)]);
       const baseSats = computeSatsForFiat(amount, currency, price);
       amountSats = applyFiatCushion(baseSats, RATE_CUSHION_BPS);
+      amountUsd = btcFromSats(amountSats) * usdPrice;
       quoteExpiresAt = nowMs + QUOTE_EXPIRY_MS;
     }
-
-    const amountUsd = btcFromSats(amountSats) * usdPrice;
 
     const { invoice, accessKey } = await createStoredInvoice({
       amountFiat: amount,

@@ -3,6 +3,7 @@ import { getCoinMarketCapApiBase, getCoinMarketCapApiKey } from '@/lib/env.serve
 const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
 
 const CURRENCY_CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
+const FALLBACK_CATALOG_TTL_MS = 60 * 1000;
 const PRICE_CACHE_TTL_MS = 60 * 1000;
 
 type CacheEntry<T> = {
@@ -122,7 +123,7 @@ export async function getCurrencyCatalog(): Promise<CurrencyCatalog> {
     return value;
   } catch {
     const fallback = buildFallbackCatalog();
-    currencyCatalogCache = { value: fallback, expiresAt: now + CURRENCY_CATALOG_TTL_MS };
+    currencyCatalogCache = { value: fallback, expiresAt: now + FALLBACK_CATALOG_TTL_MS };
     return fallback;
   }
 }
