@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { Bitcoin, Globe2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
@@ -25,6 +26,36 @@ const initialCreateInvoiceState: CreateInvoiceState = {
 
 interface SubmitButtonProps {
   label: string;
+}
+
+const POPULAR_FIAT_FLAGS: Record<string, string> = {
+  USD: '🇺🇸',
+  EUR: '🇪🇺',
+  GBP: '🇬🇧',
+  JPY: '🇯🇵',
+  CAD: '🇨🇦',
+  AUD: '🇦🇺',
+  CHF: '🇨🇭',
+};
+
+function CurrencyOptionLabel({ currency }: { currency: string }) {
+  const flag = POPULAR_FIAT_FLAGS[currency];
+  const isBitcoin = currency === 'BTC';
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/70 bg-card/80 text-[11px] leading-none">
+        {isBitcoin ? (
+          <Bitcoin className="h-3 w-3 text-[#f7931a]" />
+        ) : flag ? (
+          <span>{flag}</span>
+        ) : (
+          <Globe2 className="h-3 w-3 text-muted-foreground" />
+        )}
+      </span>
+      <span>{currency}</span>
+    </span>
+  );
 }
 
 function SubmitButton({ label }: SubmitButtonProps) {
@@ -110,7 +141,7 @@ export function InvoiceForm({ locale, messages, currencyCatalog }: InvoiceFormPr
                       <SelectLabel>{messages.currencyGroups.majorFiat}</SelectLabel>
                       {currencyCatalog.majorFiat.map((currency) => (
                         <SelectItem key={currency} value={currency}>
-                          {currency}
+                          <CurrencyOptionLabel currency={currency} />
                         </SelectItem>
                       ))}
                     </SelectGroup>
@@ -120,7 +151,9 @@ export function InvoiceForm({ locale, messages, currencyCatalog }: InvoiceFormPr
 
                   <SelectGroup>
                     <SelectLabel>{messages.currencyGroups.bitcoin}</SelectLabel>
-                    <SelectItem value={currencyCatalog.bitcoin}>{currencyCatalog.bitcoin}</SelectItem>
+                    <SelectItem value={currencyCatalog.bitcoin}>
+                      <CurrencyOptionLabel currency={currencyCatalog.bitcoin} />
+                    </SelectItem>
                   </SelectGroup>
 
                   {currencyCatalog.otherFiat.length > 0 ? (
@@ -130,7 +163,7 @@ export function InvoiceForm({ locale, messages, currencyCatalog }: InvoiceFormPr
                         <SelectLabel>{messages.currencyGroups.otherFiat}</SelectLabel>
                         {currencyCatalog.otherFiat.map((currency) => (
                           <SelectItem key={currency} value={currency}>
-                            {currency}
+                            <CurrencyOptionLabel currency={currency} />
                           </SelectItem>
                         ))}
                       </SelectGroup>
