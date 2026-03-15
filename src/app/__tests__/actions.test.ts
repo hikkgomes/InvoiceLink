@@ -1,14 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/invoice', async (importActual) => {
-  const actual = await importActual<typeof import('@/lib/invoice')>();
-  return {
-    ...actual,
-    listAddressTxidsBlockchair: vi.fn(),
-    getTxDetailsBlockchair: vi.fn(),
-    getHistoricalRateAtBlock: vi.fn(),
-  };
-});
+vi.mock('@/lib/bitcoin-tracker', () => ({
+  listAddressRecentTxids: vi.fn(),
+  getTxDetails: vi.fn(),
+}));
 
 vi.mock('@/lib/pricing', () => ({
   getBtcPrice: vi.fn(),
@@ -31,8 +26,8 @@ import {
   refreshQuote,
   type CreateInvoiceState,
 } from '@/app/actions';
+import * as bitcoinTracker from '@/lib/bitcoin-tracker';
 import type { InvoicePayload } from '@/lib/invoice';
-import * as invoice from '@/lib/invoice';
 import * as invoiceStore from '@/lib/invoice-store';
 import * as pricing from '@/lib/pricing';
 
@@ -66,6 +61,12 @@ const initialCreateInvoiceState: CreateInvoiceState = {
 describe('actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(bitcoinTracker.listAddressRecentTxids).mockResolvedValue([]);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
+      satsToAddress: 0,
+      confirmed: false,
+      time: Date.now(),
+    });
     vi.mocked(pricing.getCurrencyCatalog).mockResolvedValue({
       majorFiat: ['USD', 'EUR'],
       bitcoin: 'BTC',
@@ -313,6 +314,25 @@ describe('actions', () => {
     expect(pricing.getBtcPrice).not.toHaveBeenCalled();
   });
 
+  it('refreshQuote skips repricing when payment is already found on-chain', async () => {
+    const payload = makePayload();
+    vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(payload);
+    vi.mocked(bitcoinTracker.listAddressRecentTxids).mockResolvedValue(['chain-hit']);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
+      satsToAddress: payload.amountSats,
+      confirmed: true,
+      time: Date.now(),
+    });
+    const confirmedPayload = makePayload({ status: 'confirmed', txId: 'chain-hit' });
+    vi.mocked(invoiceStore.setStoredInvoiceStatus).mockResolvedValue(confirmedPayload);
+
+    const result = await refreshQuote(payload.invoiceId, 'key');
+
+    expect(result).toEqual({ payload: confirmedPayload });
+    expect(pricing.getBtcPrice).not.toHaveBeenCalled();
+    expect(invoiceStore.updateStoredInvoiceQuote).not.toHaveBeenCalled();
+  });
+
   it('refreshQuote masks technical error details from user response', async () => {
     const payload = makePayload();
     const sensitive = 'upstream failure at https://api.coingecko.com host=internal';
@@ -353,8 +373,8 @@ describe('actions', () => {
   it('returns pending for unconfirmed dust transactions', async () => {
     const nowMs = Date.now();
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(makePayload());
-    vi.mocked(invoice.listAddressTxidsBlockchair).mockResolvedValue(['dust-tx']);
-    vi.mocked(invoice.getTxDetailsBlockchair).mockResolvedValue({
+    vi.mocked(bitcoinTracker.listAddressRecentTxids).mockResolvedValue(['dust-tx']);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
       satsToAddress: 50,
       confirmed: false,
       time: nowMs,
@@ -369,8 +389,8 @@ describe('actions', () => {
   it('returns detected for matching unconfirmed amount', async () => {
     const nowMs = Date.now();
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(makePayload());
-    vi.mocked(invoice.listAddressTxidsBlockchair).mockResolvedValue(['candidate-tx']);
-    vi.mocked(invoice.getTxDetailsBlockchair).mockResolvedValue({
+    vi.mocked(bitcoinTracker.listAddressRecentTxids).mockResolvedValue(['candidate-tx']);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
       satsToAddress: 100_500,
       confirmed: false,
       time: nowMs,
@@ -386,14 +406,12 @@ describe('actions', () => {
   it('returns confirmed for a fiat-matching confirmed payment', async () => {
     const nowMs = Date.now();
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(makePayload());
-    vi.mocked(invoice.listAddressTxidsBlockchair).mockResolvedValue(['confirmed-tx']);
-    vi.mocked(invoice.getTxDetailsBlockchair).mockResolvedValue({
+    vi.mocked(bitcoinTracker.listAddressRecentTxids).mockResolvedValue(['confirmed-tx']);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
       satsToAddress: 100_000,
       confirmed: true,
       time: nowMs,
-      blockId: 123,
     });
-    vi.mocked(invoice.getHistoricalRateAtBlock).mockResolvedValue(100_000);
     vi.mocked(invoiceStore.setStoredInvoiceStatus).mockResolvedValue(makePayload({ status: 'confirmed', txId: 'confirmed-tx' }));
 
     const result = await checkPaymentStatus(PUBLIC_ID, 'key');
@@ -402,13 +420,30 @@ describe('actions', () => {
     expect(invoiceStore.setStoredInvoiceStatus).toHaveBeenCalledWith(PUBLIC_ID, 'confirmed', 'confirmed-tx');
   });
 
+  it('uses txId fast path to confirm without rescanning address history', async () => {
+    const nowMs = Date.now();
+    const detected = makePayload({ status: 'detected', txId: 'known-tx' });
+    vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(detected);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
+      satsToAddress: detected.amountSats,
+      confirmed: true,
+      time: nowMs,
+    });
+    vi.mocked(invoiceStore.setStoredInvoiceStatus).mockResolvedValue(makePayload({ status: 'confirmed', txId: 'known-tx' }));
+
+    const result = await checkPaymentStatus(PUBLIC_ID, 'key');
+
+    expect(result).toEqual({ status: 'confirmed', txid: 'known-tx' });
+    expect(bitcoinTracker.listAddressRecentTxids).not.toHaveBeenCalled();
+  });
+
   it('BTC invoice requires exact sats for unconfirmed detection', async () => {
     const nowMs = Date.now();
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(
       makePayload({ currency: 'BTC', amountFiat: 0.005, amountSats: 500_000 }),
     );
-    vi.mocked(invoice.listAddressTxidsBlockchair).mockResolvedValue(['btc-tx']);
-    vi.mocked(invoice.getTxDetailsBlockchair).mockResolvedValue({
+    vi.mocked(bitcoinTracker.listAddressRecentTxids).mockResolvedValue(['btc-tx']);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
       satsToAddress: 500_001,
       confirmed: false,
       time: nowMs,
@@ -425,12 +460,11 @@ describe('actions', () => {
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(
       makePayload({ currency: 'BTC', amountFiat: 0.005, amountSats: 500_000 }),
     );
-    vi.mocked(invoice.listAddressTxidsBlockchair).mockResolvedValue(['btc-confirmed']);
-    vi.mocked(invoice.getTxDetailsBlockchair).mockResolvedValue({
+    vi.mocked(bitcoinTracker.listAddressRecentTxids).mockResolvedValue(['btc-confirmed']);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
       satsToAddress: 500_000,
       confirmed: true,
       time: nowMs,
-      blockId: 123,
     });
     vi.mocked(invoiceStore.setStoredInvoiceStatus).mockResolvedValue(
       makePayload({ status: 'confirmed', txId: 'btc-confirmed', currency: 'BTC', amountFiat: 0.005, amountSats: 500_000 }),
@@ -440,13 +474,17 @@ describe('actions', () => {
 
     expect(result).toEqual({ status: 'confirmed', txid: 'btc-confirmed' });
     expect(invoiceStore.setStoredInvoiceStatus).toHaveBeenCalledWith(PUBLIC_ID, 'confirmed', 'btc-confirmed');
-    expect(invoice.getHistoricalRateAtBlock).not.toHaveBeenCalled();
   });
 
   it('keeps detected sticky when no new tx is found later', async () => {
     const detected = makePayload({ status: 'detected', txId: 'abc123' });
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(detected);
-    vi.mocked(invoice.listAddressTxidsBlockchair).mockResolvedValue([]);
+    vi.mocked(bitcoinTracker.listAddressRecentTxids).mockResolvedValue([]);
+    vi.mocked(bitcoinTracker.getTxDetails).mockResolvedValue({
+      satsToAddress: detected.amountSats,
+      confirmed: false,
+      time: Date.now(),
+    });
 
     const result = await checkPaymentStatus(PUBLIC_ID, 'key');
 

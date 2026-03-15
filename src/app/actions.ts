@@ -4,15 +4,8 @@ import { z } from 'zod';
 import { validate as validateBtcAddress } from 'bitcoin-address-validation';
 
 import { QUOTE_EXPIRY_MS, FIAT_TOLERANCE_BPS, RATE_CUSHION_BPS } from '@/lib/constants';
-import {
-  btcFromSats,
-  sats,
-  computeSatsForFiat,
-  getHistoricalRateAtBlock,
-  getTxDetailsBlockchair,
-  listAddressTxidsBlockchair,
-  type InvoicePayload,
-} from '@/lib/invoice';
+import { getTxDetails, listAddressRecentTxids } from '@/lib/bitcoin-tracker';
+import { btcFromSats, sats, computeSatsForFiat, type InvoicePayload } from '@/lib/invoice';
 import {
   buildInvoiceUrl,
   createStoredInvoice,
@@ -39,6 +32,12 @@ export type LoadInvoiceResult =
 export type RefreshQuoteResult =
   | { payload: InvoicePayload }
   | { error: string; code: 'expired' | 'invalid' | 'refresh_failed' };
+
+type ChainPaymentResult = {
+  status: 'pending' | 'detected' | 'confirmed';
+  txid?: string;
+  payload?: InvoicePayload;
+};
 
 const invoiceSchema = z.object({
   amount: z.coerce.number().positive(),
@@ -67,6 +66,62 @@ function normalizeAccessKey(rawAccessKey: string): string | null {
   const key = rawAccessKey.trim();
   if (!key) return null;
   return key;
+}
+
+function isAmountMatch(invoice: InvoicePayload, satsToAddress: number): boolean {
+  if (invoice.currency === 'BTC') {
+    return satsToAddress === invoice.amountSats;
+  }
+
+  const satsAllowed = Math.max(1, Math.round((FIAT_TOLERANCE_BPS / 10_000) * invoice.amountSats));
+  return Math.abs(satsToAddress - invoice.amountSats) <= satsAllowed;
+}
+
+async function inspectTxForInvoice(invoiceId: string, invoice: InvoicePayload, txid: string): Promise<ChainPaymentResult | null> {
+  const details = await getTxDetails(txid, invoice.address);
+  if (!details.satsToAddress) return null;
+  if (details.time < invoice.invoiceCreatedAt || details.time > invoice.invoiceExpiresAt) return null;
+  if (!isAmountMatch(invoice, details.satsToAddress)) return null;
+
+  if (details.confirmed) {
+    const payload = await setStoredInvoiceStatus(invoiceId, 'confirmed', txid);
+    return { status: 'confirmed', txid, payload };
+  }
+
+  if (invoice.status === 'detected' && invoice.txId === txid) {
+    return { status: 'detected', txid };
+  }
+
+  const payload = await setStoredInvoiceStatus(invoiceId, 'detected', txid);
+  return { status: 'detected', txid, payload };
+}
+
+async function resolvePaymentFromChain(invoiceId: string, invoice: InvoicePayload): Promise<ChainPaymentResult> {
+  const knownTxid = invoice.txId ?? undefined;
+  let hasDetectedKnownTx = false;
+
+  if (knownTxid) {
+    try {
+      const knownTxResult = await inspectTxForInvoice(invoiceId, invoice, knownTxid);
+      if (knownTxResult?.status === 'confirmed') return knownTxResult;
+      hasDetectedKnownTx = knownTxResult?.status === 'detected';
+    } catch (error) {
+      console.error('Payment txId fast-path failed:', error);
+    }
+  }
+
+  const txids = await listAddressRecentTxids(invoice.address);
+  for (const txid of txids) {
+    if (knownTxid && txid === knownTxid) continue;
+    const result = await inspectTxForInvoice(invoiceId, invoice, txid);
+    if (result) return result;
+  }
+
+  if (invoice.status === 'detected' || hasDetectedKnownTx) {
+    return { status: 'detected', txid: knownTxid };
+  }
+
+  return { status: 'pending' };
 }
 
 async function loadAuthorizedInvoice(rawInvoiceId: number | string, rawAccessKey: string) {
@@ -206,6 +261,22 @@ export async function refreshQuote(rawInvoiceId: number | string, rawAccessKey: 
       return { payload: invoice };
     }
 
+    try {
+      const chainResult = await resolvePaymentFromChain(invoiceId, invoice);
+      if (chainResult.status !== 'pending') {
+        const statusPayload: InvoicePayload = {
+          ...invoice,
+          status: chainResult.status,
+          txId: chainResult.txid ?? invoice.txId,
+        };
+        return {
+          payload: chainResult.payload ?? statusPayload,
+        };
+      }
+    } catch (error) {
+      console.error('refreshQuote chain check failed:', error);
+    }
+
     const [price, usdPrice] = await Promise.all([getBtcPrice(invoice.currency), getBtcPrice('USD')]);
     const baseSats = computeSatsForFiat(invoice.amountFiat, invoice.currency, price);
     const amountSats = applyFiatCushion(baseSats, RATE_CUSHION_BPS);
@@ -238,59 +309,13 @@ export async function checkPaymentStatus(rawInvoiceId: number | string, rawAcces
       return { status: 'invoice_expired' as const };
     }
 
-    const txids = await listAddressTxidsBlockchair(invoice.address);
-    if (!txids.length) {
-      if (invoice.status === 'detected') {
-        return { status: 'detected' as const, txid: invoice.txId ?? undefined };
-      }
-      return { status: 'pending' as const };
+    const chainResult = await resolvePaymentFromChain(invoiceId, invoice);
+    if (chainResult.status === 'confirmed') {
+      return { status: 'confirmed' as const, txid: chainResult.txid };
     }
-
-    const isBtcInvoice = invoice.currency === 'BTC';
-    const satsAllowed = isBtcInvoice
-      ? 0
-      : Math.max(1, Math.round((FIAT_TOLERANCE_BPS / 10_000) * invoice.amountSats));
-
-    for (const txid of txids) {
-      const details = await getTxDetailsBlockchair(txid, invoice.address);
-      if (!details.satsToAddress) continue;
-
-      if (details.time < invoice.invoiceCreatedAt || details.time > invoice.invoiceExpiresAt) continue;
-
-      if (!details.confirmed) {
-        const matchesUnconfirmed = isBtcInvoice
-          ? details.satsToAddress === invoice.amountSats
-          : Math.abs(details.satsToAddress - invoice.amountSats) <= satsAllowed;
-        if (matchesUnconfirmed) {
-          await setStoredInvoiceStatus(invoiceId, 'detected', txid);
-          return { status: 'detected' as const, txid };
-        }
-        continue;
-      }
-
-      if (isBtcInvoice) {
-        if (details.satsToAddress === invoice.amountSats) {
-          await setStoredInvoiceStatus(invoiceId, 'confirmed', txid);
-          return { status: 'confirmed' as const, txid };
-        }
-        continue;
-      }
-
-      const usdRate = details.blockId ? await getHistoricalRateAtBlock(details.blockId, 'USD') : null;
-      if (!usdRate) continue;
-
-      const usdPaid = btcFromSats(details.satsToAddress) * usdRate;
-      const allowedUsdDiff = (FIAT_TOLERANCE_BPS / 10_000) * invoice.amountUsd;
-      if (Math.abs(usdPaid - invoice.amountUsd) <= allowedUsdDiff) {
-        await setStoredInvoiceStatus(invoiceId, 'confirmed', txid);
-        return { status: 'confirmed' as const, txid };
-      }
+    if (chainResult.status === 'detected') {
+      return { status: 'detected' as const, txid: chainResult.txid };
     }
-
-    if (invoice.status === 'detected') {
-      return { status: 'detected' as const, txid: invoice.txId ?? undefined };
-    }
-
     return { status: 'pending' as const };
   } catch (error) {
     console.error('checkPaymentStatus failed:', error);

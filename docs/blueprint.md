@@ -12,7 +12,8 @@
 - Price Lock and Refresh: Refreshes quote fields (`amountSats`, `amountUsd`, `quoteExpiresAt`) without changing URL.
 - BTC Direct Mode: Invoices can be created directly in BTC (fixed sat amount, no quote refresh cycle).
 - Fiat Cushion: Fiat conversion adds a configurable cushion (`RATE_CUSHION_BPS`, default 1%).
-- Payment Status Check: Checks payment status by querying Blockchair address/transaction/block APIs.
+- Payment Status Check: Checks payment status via Esplora-compatible providers (mempool.space primary, blockstream.info fallback).
+- Confirmation Model: Uses sats-based tx matching plus on-chain confirmation status (no confirmation-time historical fiat revaluation).
 - Sticky Detection: Once a matching unconfirmed transaction is detected, the client keeps detected state while polling for confirmation.
 
 ## Known Constraints:

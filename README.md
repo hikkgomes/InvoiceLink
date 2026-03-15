@@ -20,7 +20,8 @@ NodeInvoice is a non-custodial Bitcoin invoicing app. Merchants create invoice l
   - Supports direct BTC amounts (for example `1 BTC` / `0.005 BTC`)
   - BTC invoices skip quote refresh and use exact satoshi matching on detection/confirmation
 - Payment status checks:
-  - Blockchair address + transaction + block endpoints
+  - Esplora API providers (`mempool.space/api` primary, `blockstream.info/api` fallback)
+  - Confirmation uses on-chain tx status with sats-based matching (no historical-rate lookup)
   - Fiat match tolerance configurable with `FIAT_TOLERANCE_BPS`
 
 ## Environment Variables
@@ -32,6 +33,8 @@ NodeInvoice is a non-custodial Bitcoin invoicing app. Merchants create invoice l
 - `RATE_CUSHION_BPS`: optional, default `100` (1%)
 - `COINMARKETCAP_API_KEY`: optional, enables pricing/catalog fallback
 - `COINMARKETCAP_API_BASE`: optional, default `https://pro-api.coinmarketcap.com`
+- `ESPLORA_BASE_URLS`: optional comma-separated provider override (default mempool + blockstream)
+- `ESPLORA_TIMEOUT_MS`: optional request timeout in ms for Esplora calls (default `8000`)
 
 ## Supabase Setup
 
