@@ -19,6 +19,10 @@ const PAYMENT_POLL_INTERVAL_MS = 10_000;
 
 type CopyItemKey = 'btcAmount' | 'address' | 'paymentLink';
 
+function usesFiatQuote(currency: string) {
+  return currency !== 'BTC';
+}
+
 function formatTime(ms: number) {
   if (ms < 0) return '00:00';
   const totalSeconds = Math.floor(ms / 1000);
@@ -51,13 +55,15 @@ function getStatusFromInvoice(invoice: InvoicePayload): InvoiceStatus {
   if (invoice.status === 'expired') return 'invoice_expired';
   if (invoice.status === 'error') return 'error';
   if (Date.now() > invoice.invoiceExpiresAt) return 'invoice_expired';
-  if (Date.now() > invoice.quoteExpiresAt) return 'quote_expired';
+  if (usesFiatQuote(invoice.currency) && Date.now() > invoice.quoteExpiresAt) return 'quote_expired';
   return 'pending';
 }
 
 export function InvoiceDisplay({ initialInvoice, accessKey, locale, messages }: InvoiceDisplayProps) {
   const [invoice, setInvoice] = useState(initialInvoice);
-  const [timeLeft, setTimeLeft] = useState(initialInvoice.quoteExpiresAt - Date.now());
+  const [timeLeft, setTimeLeft] = useState(
+    usesFiatQuote(initialInvoice.currency) ? initialInvoice.quoteExpiresAt - Date.now() : 0,
+  );
   const [paymentStatus, setPaymentStatus] = useState<InvoiceStatus>(() => getStatusFromInvoice(initialInvoice));
   const [txId, setTxId] = useState<string | null>(initialInvoice.txId);
 
@@ -75,7 +81,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey, locale, messages }: 
   useEffect(() => {
     setInvoice(initialInvoice);
     setTxId(initialInvoice.txId);
-    setTimeLeft(initialInvoice.quoteExpiresAt - Date.now());
+    setTimeLeft(usesFiatQuote(initialInvoice.currency) ? initialInvoice.quoteExpiresAt - Date.now() : 0);
     setPaymentStatus(getStatusFromInvoice(initialInvoice));
   }, [initialInvoice]);
 
@@ -119,7 +125,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey, locale, messages }: 
   }, [invoice.invoiceExpiresAt]);
 
   useEffect(() => {
-    if (paymentStatus !== 'pending') return;
+    if (paymentStatus !== 'pending' || !usesFiatQuote(invoice.currency)) return;
 
     const timer = setInterval(() => {
       if (Date.now() > invoice.invoiceExpiresAt) {
@@ -140,7 +146,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey, locale, messages }: 
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [paymentStatus, invoice.quoteExpiresAt, invoice.invoiceExpiresAt]);
+  }, [paymentStatus, invoice.currency, invoice.quoteExpiresAt, invoice.invoiceExpiresAt]);
 
   useEffect(() => {
     if (paymentStatus !== 'quote_expired') return;
@@ -269,7 +275,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey, locale, messages }: 
               <Bitcoin className="h-6 w-6 text-accent" /> {satsToBtcString(invoice.amountSats)}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              ~ {invoice.amountFiat.toFixed(2)} {invoice.currency}
+              {invoice.currency === 'BTC' ? `~ ${invoice.amountUsd.toFixed(2)} USD` : `~ ${invoice.amountFiat.toFixed(2)} ${invoice.currency}`}
             </p>
           </div>
 
@@ -282,7 +288,7 @@ export function InvoiceDisplay({ initialInvoice, accessKey, locale, messages }: 
           </div>
         </div>
 
-        {paymentStatus === 'pending' ? (
+        {paymentStatus === 'pending' && usesFiatQuote(invoice.currency) ? (
           <div>
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="flex items-center gap-1 text-muted-foreground">

@@ -11,9 +11,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import type { CurrencyCatalog } from '@/lib/currency';
 import { type I18nMessages, type Locale } from '@/lib/i18n';
 
 const initialCreateInvoiceState: CreateInvoiceState = {
@@ -39,12 +40,14 @@ function SubmitButton({ label }: SubmitButtonProps) {
 interface InvoiceFormProps {
   locale: Locale;
   messages: I18nMessages['form'];
+  currencyCatalog: CurrencyCatalog;
 }
 
-export function InvoiceForm({ locale, messages }: InvoiceFormProps) {
+export function InvoiceForm({ locale, messages, currencyCatalog }: InvoiceFormProps) {
   const [state, formAction] = useActionState<CreateInvoiceState, FormData>(createInvoice, initialCreateInvoiceState);
   const router = useRouter();
   const { toast } = useToast();
+  const defaultCurrency = currencyCatalog.majorFiat[0] ?? currencyCatalog.bitcoin;
 
   useEffect(() => {
     if (state.invoiceUrl) {
@@ -93,27 +96,52 @@ export function InvoiceForm({ locale, messages }: InvoiceFormProps) {
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-2">
               <Label htmlFor="amount">{messages.amountLabel}</Label>
-              <Input id="amount" name="amount" type="number" placeholder="100.00" step="0.01" required />
+              <Input id="amount" name="amount" type="number" placeholder="100.00" step="any" required />
             </div>
             <div className="col-span-1 space-y-2">
               <Label htmlFor="currency">{messages.currencyLabel}</Label>
-              <Select name="currency" defaultValue="USD">
+              <Select name="currency" defaultValue={defaultCurrency}>
                 <SelectTrigger id="currency">
                   <SelectValue placeholder={messages.currencyLabel} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="EUR">EUR</SelectItem>
-                  <SelectItem value="GBP">GBP</SelectItem>
-                  <SelectItem value="JPY">JPY</SelectItem>
-                  <SelectItem value="CAD">CAD</SelectItem>
-                  <SelectItem value="AUD">AUD</SelectItem>
-                  <SelectItem value="CHF">CHF</SelectItem>
+                  {currencyCatalog.majorFiat.length > 0 ? (
+                    <SelectGroup>
+                      <SelectLabel>{messages.currencyGroups.majorFiat}</SelectLabel>
+                      {currencyCatalog.majorFiat.map((currency) => (
+                        <SelectItem key={currency} value={currency}>
+                          {currency}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ) : null}
+
+                  {currencyCatalog.majorFiat.length > 0 ? <SelectSeparator /> : null}
+
+                  <SelectGroup>
+                    <SelectLabel>{messages.currencyGroups.bitcoin}</SelectLabel>
+                    <SelectItem value={currencyCatalog.bitcoin}>{currencyCatalog.bitcoin}</SelectItem>
+                  </SelectGroup>
+
+                  {currencyCatalog.otherFiat.length > 0 ? (
+                    <>
+                      <SelectSeparator />
+                      <SelectGroup>
+                        <SelectLabel>{messages.currencyGroups.otherFiat}</SelectLabel>
+                        {currencyCatalog.otherFiat.map((currency) => (
+                          <SelectItem key={currency} value={currency}>
+                            {currency}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </>
+                  ) : null}
                 </SelectContent>
               </Select>
             </div>
           </div>
           {state.details?.amount && <p className="text-sm text-destructive">{state.details.amount[0]}</p>}
+          {state.details?.currency && <p className="text-sm text-destructive">{state.details.currency[0]}</p>}
 
           <div className="space-y-2">
             <Label htmlFor="address">{messages.addressLabel}</Label>

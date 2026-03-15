@@ -4,12 +4,17 @@ vi.mock('@/lib/invoice', async (importActual) => {
   const actual = await importActual<typeof import('@/lib/invoice')>();
   return {
     ...actual,
-    getBtcPrice: vi.fn(),
     listAddressTxidsBlockchair: vi.fn(),
     getTxDetailsBlockchair: vi.fn(),
     getHistoricalRateAtBlock: vi.fn(),
   };
 });
+
+vi.mock('@/lib/pricing', () => ({
+  getBtcPrice: vi.fn(),
+  getCurrencyCatalog: vi.fn(),
+  applyFiatCushion: vi.fn((baseSats: number) => baseSats),
+}));
 
 vi.mock('@/lib/invoice-store', () => ({
   buildInvoiceUrl: vi.fn(),
@@ -29,6 +34,7 @@ import {
 import type { InvoicePayload } from '@/lib/invoice';
 import * as invoice from '@/lib/invoice';
 import * as invoiceStore from '@/lib/invoice-store';
+import * as pricing from '@/lib/pricing';
 
 const PUBLIC_ID = 'f4c9a8b7d6e5c3f2a1b0d9e8';
 
@@ -60,10 +66,17 @@ const initialCreateInvoiceState: CreateInvoiceState = {
 describe('actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(pricing.getCurrencyCatalog).mockResolvedValue({
+      majorFiat: ['USD', 'EUR'],
+      bitcoin: 'BTC',
+      otherFiat: [],
+      all: ['USD', 'EUR', 'BTC'],
+    });
+    vi.mocked(pricing.applyFiatCushion).mockImplementation((baseSats: number) => baseSats);
   });
 
   it('createInvoice returns a stable invoice URL', async () => {
-    vi.mocked(invoice.getBtcPrice)
+    vi.mocked(pricing.getBtcPrice)
       .mockResolvedValueOnce(100_000)
       .mockResolvedValueOnce(100_000);
     vi.mocked(invoiceStore.createStoredInvoice).mockResolvedValue({
@@ -87,7 +100,7 @@ describe('actions', () => {
   });
 
   it('createInvoice forwards locale when provided', async () => {
-    vi.mocked(invoice.getBtcPrice)
+    vi.mocked(pricing.getBtcPrice)
       .mockResolvedValueOnce(100_000)
       .mockResolvedValueOnce(100_000);
     vi.mocked(invoiceStore.createStoredInvoice).mockResolvedValue({
@@ -110,10 +123,79 @@ describe('actions', () => {
     expect(invoiceStore.buildInvoiceUrl).toHaveBeenCalledWith('a9b8c7d6e5f4a3b2c1d0e9f8', 'quy3GDNB', 'es');
   });
 
+  it('createInvoice rejects unsupported currencies', async () => {
+    const formData = new FormData();
+    formData.set('amount', '100');
+    formData.set('currency', 'XYZ');
+    formData.set('address', 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    formData.set('description', '');
+    formData.set('expiresIn', '7');
+
+    const result = await createInvoice(initialCreateInvoiceState, formData);
+
+    expect(result.error).toBe('Invalid form data');
+    expect(result.details.currency).toEqual(['Unsupported currency']);
+    expect(invoiceStore.createStoredInvoice).not.toHaveBeenCalled();
+  });
+
+  it('createInvoice applies fiat cushion before storing sats', async () => {
+    vi.mocked(pricing.getBtcPrice)
+      .mockResolvedValueOnce(100_000)
+      .mockResolvedValueOnce(100_000);
+    vi.mocked(pricing.applyFiatCushion).mockReturnValue(101_000);
+    vi.mocked(invoiceStore.createStoredInvoice).mockResolvedValue({
+      invoice: makePayload({ amountSats: 101_000, invoiceId: 'a9b8c7d6e5f4a3b2c1d0e9f8' }),
+      accessKey: 'quy3GDNB',
+    });
+    vi.mocked(invoiceStore.buildInvoiceUrl).mockReturnValue('/invoice/a9b8c7d6e5f4a3b2c1d0e9f8?k=quy3GDNB');
+
+    const formData = new FormData();
+    formData.set('amount', '100');
+    formData.set('currency', 'USD');
+    formData.set('address', 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    formData.set('description', 'Test');
+    formData.set('expiresIn', '7');
+
+    await createInvoice(initialCreateInvoiceState, formData);
+
+    expect(pricing.applyFiatCushion).toHaveBeenCalledWith(100_000, expect.any(Number));
+    expect(invoiceStore.createStoredInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountSats: 101_000,
+      }),
+    );
+  });
+
+  it('createInvoice supports direct BTC invoices without fiat cushion', async () => {
+    vi.mocked(pricing.getBtcPrice).mockResolvedValueOnce(100_000);
+    vi.mocked(invoiceStore.createStoredInvoice).mockResolvedValue({
+      invoice: makePayload({ currency: 'BTC', amountFiat: 0.005, amountSats: 500_000, invoiceId: 'a9b8c7d6e5f4a3b2c1d0e9f8' }),
+      accessKey: 'quy3GDNB',
+    });
+    vi.mocked(invoiceStore.buildInvoiceUrl).mockReturnValue('/invoice/a9b8c7d6e5f4a3b2c1d0e9f8?k=quy3GDNB');
+
+    const formData = new FormData();
+    formData.set('amount', '0.005');
+    formData.set('currency', 'BTC');
+    formData.set('address', 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh');
+    formData.set('description', 'Test');
+    formData.set('expiresIn', '7');
+
+    await createInvoice(initialCreateInvoiceState, formData);
+
+    expect(pricing.applyFiatCushion).not.toHaveBeenCalled();
+    expect(invoiceStore.createStoredInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currency: 'BTC',
+        amountSats: 500_000,
+      }),
+    );
+  });
+
   it('createInvoice masks upstream error details from user response', async () => {
     const sensitive = 'fetch failed https://api.coingecko.com status=503';
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.mocked(invoice.getBtcPrice).mockRejectedValue(new Error(sensitive));
+    vi.mocked(pricing.getBtcPrice).mockRejectedValue(new Error(sensitive));
 
     const formData = new FormData();
     formData.set('amount', '100');
@@ -135,7 +217,7 @@ describe('actions', () => {
     const sensitive = 'supabase error host=db.internal code=42501';
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    vi.mocked(invoice.getBtcPrice)
+    vi.mocked(pricing.getBtcPrice)
       .mockResolvedValueOnce(100_000)
       .mockResolvedValueOnce(100_000);
     vi.mocked(invoiceStore.createStoredInvoice).mockRejectedValue(new Error(sensitive));
@@ -189,7 +271,7 @@ describe('actions', () => {
     });
 
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(oldPayload);
-    vi.mocked(invoice.getBtcPrice)
+    vi.mocked(pricing.getBtcPrice)
       .mockResolvedValueOnce(100_000)
       .mockResolvedValueOnce(100_000);
     vi.mocked(invoiceStore.updateStoredInvoiceQuote).mockResolvedValue(refreshedPayload);
@@ -220,13 +302,24 @@ describe('actions', () => {
     expect(result).toEqual({ error: 'Invoice expired', code: 'expired' });
   });
 
+  it('refreshQuote returns BTC invoices unchanged', async () => {
+    const payload = makePayload({ currency: 'BTC', amountFiat: 0.005, amountSats: 500_000 });
+    vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(payload);
+
+    const result = await refreshQuote(payload.invoiceId, 'key');
+
+    expect(result).toEqual({ payload });
+    expect(invoiceStore.updateStoredInvoiceQuote).not.toHaveBeenCalled();
+    expect(pricing.getBtcPrice).not.toHaveBeenCalled();
+  });
+
   it('refreshQuote masks technical error details from user response', async () => {
     const payload = makePayload();
     const sensitive = 'upstream failure at https://api.coingecko.com host=internal';
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(payload);
-    vi.mocked(invoice.getBtcPrice).mockRejectedValue(new Error(sensitive));
+    vi.mocked(pricing.getBtcPrice).mockRejectedValue(new Error(sensitive));
 
     const result = await refreshQuote(payload.invoiceId, 'key');
 
@@ -243,7 +336,7 @@ describe('actions', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(payload);
-    vi.mocked(invoice.getBtcPrice)
+    vi.mocked(pricing.getBtcPrice)
       .mockResolvedValueOnce(100_000)
       .mockResolvedValueOnce(100_000);
     vi.mocked(invoiceStore.updateStoredInvoiceQuote).mockRejectedValue(new Error(sensitive));
@@ -307,6 +400,47 @@ describe('actions', () => {
 
     expect(result).toEqual({ status: 'confirmed', txid: 'confirmed-tx' });
     expect(invoiceStore.setStoredInvoiceStatus).toHaveBeenCalledWith(PUBLIC_ID, 'confirmed', 'confirmed-tx');
+  });
+
+  it('BTC invoice requires exact sats for unconfirmed detection', async () => {
+    const nowMs = Date.now();
+    vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(
+      makePayload({ currency: 'BTC', amountFiat: 0.005, amountSats: 500_000 }),
+    );
+    vi.mocked(invoice.listAddressTxidsBlockchair).mockResolvedValue(['btc-tx']);
+    vi.mocked(invoice.getTxDetailsBlockchair).mockResolvedValue({
+      satsToAddress: 500_001,
+      confirmed: false,
+      time: nowMs,
+    });
+
+    const result = await checkPaymentStatus(PUBLIC_ID, 'key');
+
+    expect(result).toEqual({ status: 'pending' });
+    expect(invoiceStore.setStoredInvoiceStatus).not.toHaveBeenCalled();
+  });
+
+  it('BTC invoice confirms only on exact sats match', async () => {
+    const nowMs = Date.now();
+    vi.mocked(invoiceStore.getStoredInvoiceByAccessKey).mockResolvedValue(
+      makePayload({ currency: 'BTC', amountFiat: 0.005, amountSats: 500_000 }),
+    );
+    vi.mocked(invoice.listAddressTxidsBlockchair).mockResolvedValue(['btc-confirmed']);
+    vi.mocked(invoice.getTxDetailsBlockchair).mockResolvedValue({
+      satsToAddress: 500_000,
+      confirmed: true,
+      time: nowMs,
+      blockId: 123,
+    });
+    vi.mocked(invoiceStore.setStoredInvoiceStatus).mockResolvedValue(
+      makePayload({ status: 'confirmed', txId: 'btc-confirmed', currency: 'BTC', amountFiat: 0.005, amountSats: 500_000 }),
+    );
+
+    const result = await checkPaymentStatus(PUBLIC_ID, 'key');
+
+    expect(result).toEqual({ status: 'confirmed', txid: 'btc-confirmed' });
+    expect(invoiceStore.setStoredInvoiceStatus).toHaveBeenCalledWith(PUBLIC_ID, 'confirmed', 'btc-confirmed');
+    expect(invoice.getHistoricalRateAtBlock).not.toHaveBeenCalled();
   });
 
   it('keeps detected sticky when no new tx is found later', async () => {

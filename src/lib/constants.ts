@@ -9,3 +9,6 @@ export const BLOCKCHAIR_API = "https://api.blockchair.com"; // historical fiat a
 
 // Fiat match tolerance (in basis points). 100bps = 1%.
 export const FIAT_TOLERANCE_BPS = parseInt(process.env.FIAT_TOLERANCE_BPS || "100", 10);
+
+// Cushion applied to fiat->sats quote conversion (in basis points). 100bps = 1%.
+export const RATE_CUSHION_BPS = parseInt(process.env.RATE_CUSHION_BPS || "100", 10);

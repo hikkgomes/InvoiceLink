@@ -4,6 +4,7 @@ import { InvoiceForm } from '@/components/invoice-form';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { getMessages, resolveLocale, withLocaleQuery } from '@/lib/i18n';
+import { getCurrencyCatalog } from '@/lib/pricing';
 
 interface HomePageProps {
   searchParams?: Promise<{ lang?: string | string[] }>;
@@ -13,6 +14,7 @@ export default async function Home({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
   const locale = resolveLocale(params.lang);
   const messages = getMessages(locale);
+  const currencyCatalog = await getCurrencyCatalog();
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -45,7 +47,7 @@ export default async function Home({ searchParams }: HomePageProps) {
           </div>
 
           <div className="rounded-2xl border border-accent/35 bg-card/70 p-1 shadow-[0_28px_85px_rgba(76,29,149,0.34),0_12px_45px_rgba(247,147,26,0.24)]">
-            <InvoiceForm locale={locale} messages={messages.form} />
+            <InvoiceForm locale={locale} messages={messages.form} currencyCatalog={currencyCatalog} />
           </div>
         </section>
 

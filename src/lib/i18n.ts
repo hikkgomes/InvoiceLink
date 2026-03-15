@@ -62,6 +62,11 @@ export type I18nMessages = {
     description: string;
     amountLabel: string;
     currencyLabel: string;
+    currencyGroups: {
+      majorFiat: string;
+      bitcoin: string;
+      otherFiat: string;
+    };
     addressLabel: string;
     addressPlaceholder: string;
     descriptionLabel: string;
@@ -297,6 +302,11 @@ const MESSAGES: Record<Locale, I18nMessages> = {
       description: 'Instant, non-custodial request link for your client.',
       amountLabel: 'Amount',
       currencyLabel: 'Currency',
+      currencyGroups: {
+        majorFiat: 'Major currencies',
+        bitcoin: 'Bitcoin',
+        otherFiat: 'Other fiat currencies',
+      },
       addressLabel: 'Bitcoin wallet address',
       addressPlaceholder: 'bc1...',
       descriptionLabel: 'Description (optional)',
@@ -409,6 +419,11 @@ const MESSAGES: Record<Locale, I18nMessages> = {
       description: 'Enlace de cobro instantáneo y sin custodia para tu cliente.',
       amountLabel: 'Importe',
       currencyLabel: 'Moneda',
+      currencyGroups: {
+        majorFiat: 'Monedas principales',
+        bitcoin: 'Bitcoin',
+        otherFiat: 'Otras monedas fiat',
+      },
       addressLabel: 'Dirección de cartera Bitcoin',
       addressPlaceholder: 'bc1...',
       descriptionLabel: 'Descripción (opcional)',
@@ -621,6 +636,11 @@ const MESSAGES: Record<Locale, I18nMessages> = {
       description: 'Link de cobrança instantâneo e sem custódia para o seu cliente.',
       amountLabel: 'Valor',
       currencyLabel: 'Moeda',
+      currencyGroups: {
+        majorFiat: 'Moedas principais',
+        bitcoin: 'Bitcoin',
+        otherFiat: 'Outras moedas fiduciárias',
+      },
       addressLabel: 'Endereço da carteira Bitcoin',
       addressPlaceholder: 'bc1...',
       descriptionLabel: 'Descrição (opcional)',
@@ -833,6 +853,11 @@ const MESSAGES: Record<Locale, I18nMessages> = {
       description: 'Lien de paiement instantané, non dépositaire, pour votre client.',
       amountLabel: 'Montant',
       currencyLabel: 'Devise',
+      currencyGroups: {
+        majorFiat: 'Devises principales',
+        bitcoin: 'Bitcoin',
+        otherFiat: 'Autres devises fiat',
+      },
       addressLabel: 'Adresse du portefeuille Bitcoin',
       addressPlaceholder: 'bc1...',
       descriptionLabel: 'Description (facultative)',
@@ -1045,6 +1070,11 @@ const MESSAGES: Record<Locale, I18nMessages> = {
       description: 'Sofortiger, nicht-verwahrender Zahlungslink für deinen Kunden.',
       amountLabel: 'Betrag',
       currencyLabel: 'Währung',
+      currencyGroups: {
+        majorFiat: 'Wichtige Währungen',
+        bitcoin: 'Bitcoin',
+        otherFiat: 'Weitere Fiat-Währungen',
+      },
       addressLabel: 'Bitcoin-Wallet-Adresse',
       addressPlaceholder: 'bc1...',
       descriptionLabel: 'Beschreibung (optional)',
@@ -1257,6 +1287,11 @@ const MESSAGES: Record<Locale, I18nMessages> = {
       description: 'Link di pagamento istantaneo e non-custodial per il tuo cliente.',
       amountLabel: 'Importo',
       currencyLabel: 'Valuta',
+      currencyGroups: {
+        majorFiat: 'Valute principali',
+        bitcoin: 'Bitcoin',
+        otherFiat: 'Altre valute fiat',
+      },
       addressLabel: 'Indirizzo wallet Bitcoin',
       addressPlaceholder: 'bc1...',
       descriptionLabel: 'Descrizione (facoltativa)',

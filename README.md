@@ -9,7 +9,16 @@ NodeInvoice is a non-custodial Bitcoin invoicing app. Merchants create invoice l
 - Supabase (private schema) for invoice persistence
 - Quote pricing:
   - Primary: CoinGecko
-  - Fallback: Bitstamp (USD/EUR only)
+  - Fallback: CoinMarketCap (optional API key)
+- Currency catalog:
+  - Major fiat currencies first (`USD, EUR, GBP, JPY, CAD, AUD, CHF`)
+  - `BTC` option for direct BTC invoices
+  - Other fiat currencies from CoinGecko/CoinMarketCap, deduped and sorted
+- Fiat cushion:
+  - Fiat->BTC quotes apply a cushion (`RATE_CUSHION_BPS`, default `100` = 1%)
+- BTC invoice mode:
+  - Supports direct BTC amounts (for example `1 BTC` / `0.005 BTC`)
+  - BTC invoices skip quote refresh and use exact satoshi matching on detection/confirmation
 - Payment status checks:
   - Blockchair address + transaction + block endpoints
   - Fiat match tolerance configurable with `FIAT_TOLERANCE_BPS`
@@ -20,6 +29,9 @@ NodeInvoice is a non-custodial Bitcoin invoicing app. Merchants create invoice l
 - `SUPABASE_SERVICE_ROLE_KEY`: server-only key (never expose in client)
 - `INVOICE_KEY_PEPPER`: random secret used for hashing invoice view keys
 - `FIAT_TOLERANCE_BPS`: optional, default `100` (1%)
+- `RATE_CUSHION_BPS`: optional, default `100` (1%)
+- `COINMARKETCAP_API_KEY`: optional, enables pricing/catalog fallback
+- `COINMARKETCAP_API_BASE`: optional, default `https://pro-api.coinmarketcap.com`
 
 ## Supabase Setup
 

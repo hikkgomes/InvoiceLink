@@ -3,11 +3,11 @@
 import { z } from 'zod';
 import { validate as validateBtcAddress } from 'bitcoin-address-validation';
 
-import { QUOTE_EXPIRY_MS, FIAT_TOLERANCE_BPS } from '@/lib/constants';
+import { QUOTE_EXPIRY_MS, FIAT_TOLERANCE_BPS, RATE_CUSHION_BPS } from '@/lib/constants';
 import {
   btcFromSats,
+  sats,
   computeSatsForFiat,
-  getBtcPrice,
   getHistoricalRateAtBlock,
   getTxDetailsBlockchair,
   listAddressTxidsBlockchair,
@@ -21,6 +21,7 @@ import {
   updateStoredInvoiceQuote,
 } from '@/lib/invoice-store';
 import { resolveLocale } from '@/lib/i18n';
+import { applyFiatCushion, getBtcPrice, getCurrencyCatalog } from '@/lib/pricing';
 
 type InvoiceField = 'amount' | 'currency' | 'address' | 'description' | 'expiresIn';
 type InvoiceFieldErrors = Partial<Record<InvoiceField, string[]>>;
@@ -41,12 +42,20 @@ export type RefreshQuoteResult =
 
 const invoiceSchema = z.object({
   amount: z.coerce.number().positive(),
-  currency: z.string().min(1),
+  currency: z.string().trim().min(1),
   address: z.string().min(26).refine((v) => validateBtcAddress(v), { message: 'Invalid Bitcoin address' }),
   description: z.string().max(100).optional(),
   expiresIn: z.coerce.number().int().positive().optional(),
   lang: z.string().optional(),
 });
+
+function invalidCurrencyState(message = 'Unsupported currency'): CreateInvoiceState {
+  return {
+    error: 'Invalid form data',
+    details: { currency: [message] },
+    invoiceUrl: null,
+  };
+}
 
 function parseInvoiceId(rawInvoiceId: number | string): string | null {
   const parsed = String(rawInvoiceId).trim();
@@ -119,18 +128,35 @@ export async function createInvoice(
     };
   }
 
-  const { amount, currency, address, description, expiresIn, lang } = parsed.data;
+  const { amount, address, description, expiresIn, lang } = parsed.data;
+  const currency = parsed.data.currency.toUpperCase();
   const locale = resolveLocale(lang);
 
   try {
+    const catalog = await getCurrencyCatalog();
+    const supported = new Set(catalog.all);
+    if (!supported.has(currency)) {
+      return invalidCurrencyState();
+    }
+
     const nowMs = Date.now();
-    const [price, usdPrice] = await Promise.all([getBtcPrice(currency), getBtcPrice('USD')]);
-
-    const amountSats = computeSatsForFiat(amount, currency, price);
-    const amountUsd = btcFromSats(amountSats) * usdPrice;
-
-    const quoteExpiresAt = nowMs + QUOTE_EXPIRY_MS;
     const invoiceExpiresAt = nowMs + (expiresIn ?? 7) * 24 * 60 * 60 * 1000;
+    const usdPrice = await getBtcPrice('USD');
+
+    let amountSats: number;
+    let quoteExpiresAt: number;
+
+    if (currency === 'BTC') {
+      amountSats = sats(amount);
+      quoteExpiresAt = invoiceExpiresAt;
+    } else {
+      const price = await getBtcPrice(currency);
+      const baseSats = computeSatsForFiat(amount, currency, price);
+      amountSats = applyFiatCushion(baseSats, RATE_CUSHION_BPS);
+      quoteExpiresAt = nowMs + QUOTE_EXPIRY_MS;
+    }
+
+    const amountUsd = btcFromSats(amountSats) * usdPrice;
 
     const { invoice, accessKey } = await createStoredInvoice({
       amountFiat: amount,
@@ -176,8 +202,13 @@ export async function refreshQuote(rawInvoiceId: number | string, rawAccessKey: 
       return { payload: invoice };
     }
 
+    if (invoice.currency === 'BTC') {
+      return { payload: invoice };
+    }
+
     const [price, usdPrice] = await Promise.all([getBtcPrice(invoice.currency), getBtcPrice('USD')]);
-    const amountSats = computeSatsForFiat(invoice.amountFiat, invoice.currency, price);
+    const baseSats = computeSatsForFiat(invoice.amountFiat, invoice.currency, price);
+    const amountSats = applyFiatCushion(baseSats, RATE_CUSHION_BPS);
     const amountUsd = btcFromSats(amountSats) * usdPrice;
     const quoteExpiresAt = Date.now() + QUOTE_EXPIRY_MS;
 
@@ -215,7 +246,10 @@ export async function checkPaymentStatus(rawInvoiceId: number | string, rawAcces
       return { status: 'pending' as const };
     }
 
-    const satsAllowed = Math.max(1, Math.round((FIAT_TOLERANCE_BPS / 10_000) * invoice.amountSats));
+    const isBtcInvoice = invoice.currency === 'BTC';
+    const satsAllowed = isBtcInvoice
+      ? 0
+      : Math.max(1, Math.round((FIAT_TOLERANCE_BPS / 10_000) * invoice.amountSats));
 
     for (const txid of txids) {
       const details = await getTxDetailsBlockchair(txid, invoice.address);
@@ -224,9 +258,20 @@ export async function checkPaymentStatus(rawInvoiceId: number | string, rawAcces
       if (details.time < invoice.invoiceCreatedAt || details.time > invoice.invoiceExpiresAt) continue;
 
       if (!details.confirmed) {
-        if (Math.abs(details.satsToAddress - invoice.amountSats) <= satsAllowed) {
+        const matchesUnconfirmed = isBtcInvoice
+          ? details.satsToAddress === invoice.amountSats
+          : Math.abs(details.satsToAddress - invoice.amountSats) <= satsAllowed;
+        if (matchesUnconfirmed) {
           await setStoredInvoiceStatus(invoiceId, 'detected', txid);
           return { status: 'detected' as const, txid };
+        }
+        continue;
+      }
+
+      if (isBtcInvoice) {
+        if (details.satsToAddress === invoice.amountSats) {
+          await setStoredInvoiceStatus(invoiceId, 'confirmed', txid);
+          return { status: 'confirmed' as const, txid };
         }
         continue;
       }

@@ -22,49 +22,6 @@ export interface InvoicePayload {
   txId: string | null;
 }
 
-// ---- Live price (for quoting/refreshing): CoinGecko -> Bitstamp ----
-async function fetchJson(url: string) {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-async function priceFromCoinGecko(vs: string) {
-  const data = await fetchJson(
-    `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=${vs.toLowerCase()}`,
-  );
-  const p = data?.bitcoin?.[vs.toLowerCase()];
-  if (typeof p !== "number") throw new Error("CG price missing");
-  return p as number;
-}
-
-async function priceFromBitstamp(vs: string) {
-  const pair = vs.toUpperCase() === "EUR" ? "btceur" : "btcusd";
-  const data = await fetchJson(`https://www.bitstamp.net/api/v2/ticker/${pair}`);
-  const p = Number(data?.last);
-  if (!Number.isFinite(p)) throw new Error("Bitstamp price missing");
-  return p;
-}
-
-export async function getBtcPrice(vs: string): Promise<number> {
-  try {
-    return await priceFromCoinGecko(vs);
-  } catch (error) {
-    const upper = vs.toUpperCase();
-    if (upper !== "USD" && upper !== "EUR") {
-      throw new Error(
-        `Price unavailable for ${upper}: primary source failed and fallback is only supported for USD/EUR.`,
-      );
-    }
-    try {
-      return await priceFromBitstamp(upper);
-    } catch {
-      const reason = error instanceof Error ? error.message : "unknown";
-      throw new Error(`Price unavailable for ${upper}: ${reason}`);
-    }
-  }
-}
-
 // Conversion
 export function computeSatsForFiat(fiatAmount: number, _vs: string, price: number): number {
   const btc = fiatAmount / price;
